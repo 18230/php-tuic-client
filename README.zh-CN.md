@@ -172,3 +172,5 @@ composer test
 php bin/tuic-client --config=examples/node.example.yaml --dry-run
 php bin/tuic-client doctor --config=examples/node.example.yaml
 ```
+
+发布流程还会额外跑一轮真实节点联调，覆盖 `ubuntu-22.04`、`windows-latest`、`macos-15-intel`，并且直接使用包内自带的 `libquiche` 与本地 `socks5://127.0.0.1:11084` 监听完成端到端验证。

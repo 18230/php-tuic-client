@@ -172,3 +172,5 @@ composer test
 php bin/tuic-client --config=examples/node.example.yaml --dry-run
 php bin/tuic-client doctor --config=examples/node.example.yaml
 ```
+
+The release pipeline also runs a real-node end-to-end probe on `ubuntu-22.04`, `windows-latest`, and `macos-15-intel` using the packaged `libquiche` binaries and a local `socks5://127.0.0.1:11084` listener.

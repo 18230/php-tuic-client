@@ -8,20 +8,22 @@ All notable changes to this project will be documented in this file.
 
 - Renamed the Composer package to `18230/php-tuic-client`
 - Aligned the repository structure, docs, CI, and release assets with `php-shadowsocks-client`
+- Stabilized the runtime around packaged `cloudflare/quiche` FFI libraries instead of a source-build-only workflow
 
 ### Added
 
 - Unified `bin/tuic-client` CLI with `run` and `doctor`
 - PHPUnit test suite and `composer test`
 - Laravel and ThinkPHP service-provider integration
-- Cross-platform project scripts and CI, with runtime support currently aimed at Linux and macOS
+- Cross-platform project scripts and CI for Windows, Linux, and macOS
 - Packagist sync workflow
 - English and Simplified Chinese documentation structure
 - Production deployment templates for systemd, Supervisor, and launchd
+- Prebuilt `libquiche` binaries vendored into release artifacts for `windows-x64`, `linux-x64`, and `macos-x64`
+- Real-node end-to-end verification on `ubuntu-22.04`, `windows-latest`, and `macos-15-intel`
 
 ### Notes
 
-- The QUIC transport still depends on `amphp/quic`, which is currently published upstream as `dev-master`
 - `ext-ffi` must be enabled in the PHP runtime that executes this package
 
 ## [v0.1.0] - 2026-03-29
