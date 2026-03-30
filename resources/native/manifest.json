@@ -1,7 +1,7 @@
 {
     "quiche_version": "0.26.1",
-    "generated_at": "2026-03-30T11:49:15Z",
-    "source_commit": "7ca1da7c715088babe1d8301f6f40c6bd0b414f2",
+    "generated_at": "2026-03-30T11:57:17Z",
+    "source_commit": "f91cc7975197f16f02da2224696ca7e2b5dd4e60",
     "libraries": [
         {
             "triplet": "linux-x64",
@@ -18,7 +18,7 @@
         {
             "triplet": "windows-x64",
             "file": "quiche.dll",
-            "sha256": "2233490bd4d982a9df13d0175c27b00f998a4bf98fd4726f68b9eef1e3eaece1",
+            "sha256": "a0c4a9041b831be62127747683a6940206ee3da0b4de6b68ea7a7a390d47b1a3",
             "size": 3381760
         }
     ]
