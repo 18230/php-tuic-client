@@ -12,18 +12,18 @@ class TuicProxyStartCommand extends Command
     protected function configure(): void
     {
         $this->setName('tuic:proxy-start')
-            ->setDescription('Start the local TUIC HTTP and SOCKS5 proxy server')
+            ->setDescription('Start the local TUIC SOCKS5 proxy server')
             ->addOption('config', null, Option::VALUE_OPTIONAL, 'TUIC 配置文件路径', 'config/tuic.yaml')
-            ->addOption('http-listen', null, Option::VALUE_OPTIONAL, '本地 HTTP 代理监听地址', '127.0.0.1:8080')
-            ->addOption('socks-listen', null, Option::VALUE_OPTIONAL, '本地 SOCKS5 代理监听地址', '127.0.0.1:1080');
+            ->addOption('listen', null, Option::VALUE_OPTIONAL, '本地 SOCKS5 代理监听地址', '127.0.0.1:1080')
+            ->addOption('allow-ip', null, Option::VALUE_OPTIONAL, '允许访问本地代理的来源 IP 或 CIDR', '127.0.0.1');
     }
 
     protected function execute(Input $input, Output $output): int
     {
         $script = root_path() . 'vendor/18230/php-tuic-client/bin/tuic-client';
         $config = $this->resolvePath((string) $input->getOption('config'));
-        $httpListen = (string) $input->getOption('http-listen');
-        $socksListen = (string) $input->getOption('socks-listen');
+        $listen = (string) $input->getOption('listen');
+        $allowIp = (string) $input->getOption('allow-ip');
 
         if (!is_file($script)) {
             $output->writeln("<error>Package script not found: {$script}</error>");
@@ -37,11 +37,11 @@ class TuicProxyStartCommand extends Command
             return self::FAILURE;
         }
 
-        $command = $this->buildCommand($script, $config, $httpListen, $socksListen);
+        $command = $this->buildCommand($script, $config, $listen, $allowIp);
 
         $output->writeln("Starting TUIC proxy with config: {$config}");
-        $output->writeln("HTTP listen: {$httpListen}");
-        $output->writeln("SOCKS5 listen: {$socksListen}");
+        $output->writeln("SOCKS5 listen: {$listen}");
+        $output->writeln("Allow IP: {$allowIp}");
 
         passthru($command, $exitCode);
 
@@ -61,14 +61,14 @@ class TuicProxyStartCommand extends Command
         return root_path() . ltrim($path, '/\\');
     }
 
-    private function buildCommand(string $script, string $config, string $httpListen, string $socksListen): string
+    private function buildCommand(string $script, string $config, string $listen, string $allowIp): string
     {
         return implode(' ', [
             escapeshellarg(PHP_BINARY),
             escapeshellarg($script),
             '--config=' . escapeshellarg($config),
-            '--http-listen=' . escapeshellarg($httpListen),
-            '--socks-listen=' . escapeshellarg($socksListen),
+            '--listen=' . escapeshellarg($listen),
+            '--allow-ip=' . escapeshellarg($allowIp),
         ]);
     }
 }

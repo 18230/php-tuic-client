@@ -14,14 +14,14 @@ class TuicServiceProvider extends \Illuminate\Support\ServiceProvider
             return new TuicRequestClient(
                 configPath: (string) $app['config']->get('tuic-client.config', base_path('config/tuic.yaml')),
                 nodeName: $app['config']->get('tuic-client.node_name'),
-                httpPort: (int) $app['config']->get('tuic-client.http_port', 8080),
                 socksPort: (int) $app['config']->get('tuic-client.socks_port', 1080),
-                proxyMode: (string) $app['config']->get('tuic-client.proxy_mode', 'http'),
+                proxyMode: (string) $app['config']->get('tuic-client.proxy_mode', 'socks5h'),
                 phpBinary: $app['config']->get('tuic-client.php_binary'),
                 startupTimeout: (float) $app['config']->get('tuic-client.startup_timeout', 10.0),
             );
         });
 
+        $this->app->alias(TuicRequestClient::class, 'tuic-client.request');
         $this->app->alias(TuicRequestClient::class, 'tuic-client.http');
     }
 

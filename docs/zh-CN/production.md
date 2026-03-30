@@ -63,6 +63,25 @@ $env:QUICHE_LIB = 'E:\proxy\resources\native\windows-x64\quiche.dll'
 .\scripts\start-tuic-client.ps1
 ```
 
+## 运行时文件
+
+生产环境推荐至少保留：
+
+- `TUIC_LOG_FILE`：逐行日志
+- `TUIC_STATUS_FILE`：JSON 状态快照
+- `TUIC_PID_FILE`：当前进程号
+
+`status-file` 里常看的字段有：
+
+- `listen`
+- `node.server`
+- `node.port`
+- `stats.accepted_connections_total`
+- `stats.closed_connections_total`
+- `stats.handshake_timeouts_total`
+- `stats.tuic_auth_success_total`
+- `stats.tuic_auth_failure_total`
+
 ## 原生库构建
 
 只有在使用 `dev-main`、本地开发，或者目标架构不在官方内置范围时，才需要手动构建。正式 tag 版本已经自带 x64 预编译库。
@@ -89,3 +108,17 @@ Linux / macOS：
 - `skip-cert-verify: true` 要当成明确的安全取舍。
 - 建议配合 `systemd`、`supervisord`、`launchd` 等守护进程使用。
 - 正式 tag 已经把 x64 原生库跟着 Composer 包一起发了。如果你是自定义架构，请保持同样的 `resources/native/` 目录结构一起发布。
+
+## 部署检查清单
+
+1. 通过正式 tag 安装：`composer require 18230/php-tuic-client`
+2. 执行 `php bin/tuic-client doctor --config=/path/to/tuic.yaml`
+3. 启动本地 SOCKS5 运行时，并配置 `log-file`、`status-file`、`pid-file`
+4. 用 `curl --proxy socks5h://127.0.0.1:1080 https://api.ipify.org?format=json` 做一次探活
+5. 把进程交给 `systemd`、`supervisord` 或 `launchd`
+
+## 兼容性说明
+
+- 当前生产主路径是独立的 SOCKS5 长驻进程。
+- `TuicRequestClient` 仍然存在，但只是给框架项目用的便捷层，底层还是同一个本地 SOCKS5 进程。
+- 当前运行时明确不提供 HTTP 代理模式。

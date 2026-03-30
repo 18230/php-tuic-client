@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.2.2] - 2026-03-30
+
+### Changed
+
+- Expanded the English and Simplified Chinese docs with node field guidance, runtime file explanations, troubleshooting, and deployment checklists
+- Aligned framework config templates and command stubs with the current SOCKS5-only runtime model
+- Refreshed the bundled examples so they demonstrate the recommended local SOCKS5 workflow instead of the removed HTTP proxy runtime
+
 ## [v0.2.1] - 2026-03-30
 
 ### Added

@@ -8,6 +8,7 @@ $client = new TuicRequestClient(__DIR__ . '/node.user.yaml');
 
 try {
     $response = $client->get('https://example.com/');
+    echo "Proxy: {$client->getSocksProxyUrl()}\n";
     echo "Status: {$response->statusCode}\n";
     echo "Server: " . ($response->header('server') ?? '<unknown>') . "\n";
     echo substr($response->body, 0, 120) . "\n";

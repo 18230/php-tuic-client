@@ -14,6 +14,8 @@ The package exposes a service provider:
 
 If package discovery is enabled, Laravel will register it automatically.
 
+The primary production runtime is still the standalone local SOCKS5 process. The framework helper layer is optional and wraps that same runtime with cURL-based request helpers.
+
 Published config template:
 
 - [config/laravel/tuic-client.php](../../config/laravel/tuic-client.php)
@@ -31,6 +33,15 @@ try {
 } finally {
     $client->stop();
 }
+```
+
+If you only need the proxy address instead of a request helper:
+
+```php
+use PhpTuic\Http\TuicRequestClient;
+
+$client = app(TuicRequestClient::class);
+$socksProxy = $client->getSocksProxyUrl();
 ```
 
 To publish the config:
@@ -68,6 +79,8 @@ try {
 }
 ```
 
+You can also obtain the local SOCKS5 endpoint directly through `getSocksProxyUrl()`.
+
 ## CLI From Framework Projects
 
 If your framework project only needs the local proxy runtime, call:
@@ -76,13 +89,7 @@ If your framework project only needs the local proxy runtime, call:
 vendor/bin/tuic-client --config=config/tuic.yaml
 ```
 
-or the lower-level runtime entrypoint:
-
-```bash
-vendor/bin/tuic-proxy-server --config=config/tuic.yaml
-```
-
-The included command stubs are still available:
+The included command stubs are still available and now target the SOCKS5 runtime only:
 
 - [stubs/laravel/TuicProxyStartCommand.php](../../stubs/laravel/TuicProxyStartCommand.php)
 - [stubs/thinkphp/TuicProxyStartCommand.php](../../stubs/thinkphp/TuicProxyStartCommand.php)

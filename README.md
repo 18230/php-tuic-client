@@ -21,12 +21,12 @@ The QUIC transport is provided by `cloudflare/quiche` through PHP FFI. The local
 - Windows, Linux, and macOS project support
 - cross-platform startup scripts
 - `doctor` and `run` CLI workflow
+- compatibility request helpers for framework projects, built on top of the same local SOCKS5 runtime
 
 Not in scope right now:
 
 - UDP relay
 - HTTP proxy runtime
-- application request wrappers
 - multi-node scheduling
 
 ## Requirements
@@ -102,11 +102,13 @@ Then point your tools at:
 socks5://127.0.0.1:1080
 ```
 
-Examples:
+For command-line tools, prefer `socks5h://` so DNS resolution also goes through the proxy:
 
 ```bash
 curl --proxy socks5h://127.0.0.1:1080 https://api.ipify.org?format=json
 ```
+
+Examples:
 
 ```php
 <?php
@@ -120,6 +122,41 @@ curl_setopt_array($ch, [
 
 echo curl_exec($ch);
 curl_close($ch);
+```
+
+## Node Fields
+
+Required TUIC node fields:
+
+- `name`: local display name
+- `type`: must be `tuic`
+- `server`: remote TUIC server hostname or IP
+- `port`: remote TUIC port
+- `uuid`: TUIC user UUID
+- `password`: TUIC password / token
+- `alpn`: usually `[h3]`
+- `sni`: TLS server name
+
+Supported optional fields:
+
+- `skip-cert-verify`: defaults to `false`
+- `disable-sni`: defaults to `false`
+- `reduce-rtt`: defaults to `false`
+- `udp-relay-mode`: parsed but UDP relay is not implemented yet
+- `congestion-controller`: typically `bbr`
+
+Minimal example:
+
+```yaml
+proxies:
+  - name: demo-tuic
+    type: tuic
+    server: example.com
+    port: 443
+    uuid: 00000000-0000-4000-8000-000000000000
+    password: replace-with-your-password
+    alpn: [h3]
+    sni: example.com
 ```
 
 ## CLI
@@ -177,6 +214,22 @@ proxies:
     sni: example.com
 ```
 
+## Runtime Outputs
+
+When you run the proxy in production, these files are the most useful:
+
+- `log-file`: human-readable runtime log
+- `status-file`: JSON snapshot of listener, node, and counters
+- `pid-file`: current process ID
+
+The `status-file` includes counters such as:
+
+- `accepted_connections_total`
+- `closed_connections_total`
+- `handshake_timeouts_total`
+- `tuic_auth_success_total`
+- `tuic_auth_failure_total`
+
 ## Production Notes
 
 - Keep the SOCKS5 listener on loopback unless you truly need LAN access.
@@ -185,6 +238,23 @@ proxies:
 - Production flags stay intentionally small and explicit: `allow-ip`, `max-connections`, `connect-timeout`, `idle-timeout`, `handshake-timeout`, `status-file`, `log-file`, and `pid-file`.
 - If you deploy on another architecture, ship your own `libquiche` with the same artifact and either place it under the matching triplet directory or set `QUICHE_LIB`.
 - Prefer Linux for long-running production workloads.
+
+## Troubleshooting
+
+- `doctor` fails before startup:
+  Run `php bin/tuic-client doctor ...` with the exact PHP binary you will use in production.
+- `ext-ffi` is disabled:
+  Enable FFI in `php.ini`, then rerun `doctor`.
+- `libquiche` cannot be found:
+  Use the tagged release package or point `QUICHE_LIB` / `--quiche-lib` at the absolute library path.
+- The process starts but local requests fail:
+  Check `log-file` and `status-file` first. If `tuic_auth_failure_total` is non-zero, verify node credentials, SNI, and TLS settings.
+- Windows / Linux / macOS mismatch:
+  Make sure the packaged native library matches the current platform and architecture.
+
+## Framework Helpers
+
+The package still ships `TuicRequestClient` and framework service providers for Laravel / ThinkPHP. These helpers are convenience layers built on top of the same local SOCKS5 runtime plus cURL. They are optional and not required if you only want the protocol-level local proxy.
 
 More detail:
 

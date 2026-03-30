@@ -8,8 +8,8 @@ $client = new TuicRequestClient(__DIR__ . '/node.user.yaml');
 
 $checks = [
     'GET http' => static fn (TuicRequestClient $c) => $c->get('http://neverssl.com/'),
-    'GET https' => static fn (TuicRequestClient $c) => $c->get('https://example.com/'),
-    'HEAD https' => static fn (TuicRequestClient $c) => $c->head('https://example.com/'),
+    'GET https' => static fn (TuicRequestClient $c) => $c->get('https://postman-echo.com/get?source=method_smoke'),
+    'HEAD https' => static fn (TuicRequestClient $c) => $c->head('https://postman-echo.com/get?source=head'),
     'POST https' => static fn (TuicRequestClient $c) => $c->post('https://postman-echo.com/post', ['foo' => 'bar']),
     'PUT https' => static fn (TuicRequestClient $c) => $c->put('https://postman-echo.com/put', ['foo' => 'bar']),
     'PATCH https' => static fn (TuicRequestClient $c) => $c->patch('https://postman-echo.com/patch', ['foo' => 'bar']),
@@ -18,6 +18,7 @@ $checks = [
 ];
 
 try {
+    printf("Proxy: %s\n", $client->getSocksProxyUrl());
     foreach ($checks as $label => $runner) {
         $response = $runner($client);
         printf(

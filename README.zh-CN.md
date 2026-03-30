@@ -21,12 +21,12 @@
 - Windows、Linux、macOS 三端项目支持
 - 跨平台启动脚本
 - `doctor` 与 `run` CLI 工作流
+- 面向框架项目的兼容请求辅助层，底层仍然复用同一条本地 SOCKS5 运行链路
 
 当前不包含：
 
 - UDP relay
 - HTTP 代理运行时
-- 业务层请求封装
 - 多节点调度
 
 ## 运行要求
@@ -102,11 +102,13 @@ php bin/tuic-client --config=examples/node.example.yaml --listen=127.0.0.1:1080
 socks5://127.0.0.1:1080
 ```
 
-示例：
+命令行工具建议优先使用 `socks5h://`，这样域名解析也会走代理侧：
 
 ```bash
 curl --proxy socks5h://127.0.0.1:1080 https://api.ipify.org?format=json
 ```
+
+示例：
 
 ```php
 <?php
@@ -120,6 +122,41 @@ curl_setopt_array($ch, [
 
 echo curl_exec($ch);
 curl_close($ch);
+```
+
+## 节点字段说明
+
+必填字段：
+
+- `name`：本地显示名称
+- `type`：必须是 `tuic`
+- `server`：远端 TUIC 服务地址
+- `port`：远端端口
+- `uuid`：TUIC 用户 UUID
+- `password`：TUIC 密码 / token
+- `alpn`：一般写 `[h3]`
+- `sni`：TLS 的服务名
+
+支持但当前仍属附加字段：
+
+- `skip-cert-verify`：默认 `false`
+- `disable-sni`：默认 `false`
+- `reduce-rtt`：默认 `false`
+- `udp-relay-mode`：会解析，但当前还没有实现 UDP relay
+- `congestion-controller`：通常使用 `bbr`
+
+最小示例：
+
+```yaml
+proxies:
+  - name: demo-tuic
+    type: tuic
+    server: example.com
+    port: 443
+    uuid: 00000000-0000-4000-8000-000000000000
+    password: replace-with-your-password
+    alpn: [h3]
+    sni: example.com
 ```
 
 ## CLI 参数
@@ -177,6 +214,22 @@ proxies:
     sni: example.com
 ```
 
+## 运行时输出
+
+生产环境里最建议打开这三类文件：
+
+- `log-file`：人类可读的运行日志
+- `status-file`：JSON 状态快照
+- `pid-file`：当前进程号
+
+`status-file` 里会有这些关键统计项：
+
+- `accepted_connections_total`
+- `closed_connections_total`
+- `handshake_timeouts_total`
+- `tuic_auth_success_total`
+- `tuic_auth_failure_total`
+
 ## 生产说明
 
 - 监听地址优先保持在回环地址。
@@ -185,6 +238,23 @@ proxies:
 - 生产参数尽量保持少而明确：`allow-ip`、`max-connections`、`connect-timeout`、`idle-timeout`、`handshake-timeout`、`status-file`、`log-file`、`pid-file`。
 - 如果目标机器是其他架构，部署时请把自建 `libquiche` 跟着同一份产物一起发布，并放到匹配的 triplet 目录，或者设置 `QUICHE_LIB`。
 - 长时间生产运行优先 Linux。
+
+## 常见排查
+
+- `doctor` 在启动前失败：
+  请使用和实际长驻进程完全一致的 PHP 二进制执行 `php bin/tuic-client doctor ...`
+- `ext-ffi` 没启用：
+  在 `php.ini` 打开 FFI，然后重新执行 `doctor`
+- 找不到 `libquiche`：
+  优先使用正式 tag 的安装包，或者通过 `QUICHE_LIB` / `--quiche-lib` 指定绝对路径
+- 进程能起来，但本地请求失败：
+  先看 `log-file` 和 `status-file`。如果 `tuic_auth_failure_total` 不为 0，优先检查节点凭证、SNI 和 TLS 配置
+- 三端运行不一致：
+  先确认当前平台和架构是否命中了匹配的原生库
+
+## 框架辅助层
+
+包里仍然保留了 `TuicRequestClient` 以及 Laravel / ThinkPHP 的服务注册能力，但它们只是建立在“本地 SOCKS5 + cURL”之上的辅助层；如果你只关心协议级本地代理，可以完全忽略这些辅助类。
 
 更多说明：
 

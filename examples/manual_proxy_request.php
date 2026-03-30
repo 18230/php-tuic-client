@@ -18,16 +18,16 @@ Usage:
   php examples/manual_proxy_request.php --url=https://example.com/ [options]
 
 Options:
-  --proxy=ADDR              Proxy address, default 127.0.0.1:8080.
-  --proxy-type=TYPE         http or socks5, default http.
+  --proxy=ADDR              Proxy address, default 127.0.0.1:1080.
+  --proxy-type=TYPE         socks5 or socks5h, default socks5h.
   --method=METHOD           HTTP method, default GET.
   --data=STRING             Request body.
   --header='Name: value'    Repeatable header.
   --timeout=SECONDS         Request timeout, default 30.
 
 Examples:
-  php examples/manual_proxy_request.php --url=http://neverssl.com/
-  php examples/manual_proxy_request.php --proxy-type=socks5 --proxy=127.0.0.1:1080 --url=https://example.com/
+  php examples/manual_proxy_request.php --url=https://api.ipify.org?format=json
+  php examples/manual_proxy_request.php --proxy-type=socks5h --proxy=127.0.0.1:1080 --url=https://example.com/
 
 TXT);
     exit(1);
@@ -38,8 +38,8 @@ if (!function_exists('curl_init')) {
     exit(1);
 }
 
-$proxyType = strtolower((string) ($options['proxy-type'] ?? 'http'));
-$proxyAddress = (string) ($options['proxy'] ?? ($proxyType === 'socks5' ? '127.0.0.1:1080' : '127.0.0.1:8080'));
+$proxyType = strtolower((string) ($options['proxy-type'] ?? 'socks5h'));
+$proxyAddress = (string) ($options['proxy'] ?? '127.0.0.1:1080');
 $method = strtoupper((string) ($options['method'] ?? (isset($options['data']) ? 'POST' : 'GET')));
 $timeout = (int) ($options['timeout'] ?? 30);
 $headers = [];
@@ -49,9 +49,8 @@ foreach ((array) ($options['header'] ?? []) as $header) {
 }
 
 $curlProxyType = match ($proxyType) {
-    'http' => CURLPROXY_HTTP,
     'socks5', 'socks5h' => CURLPROXY_SOCKS5_HOSTNAME,
-    default => throw new RuntimeException("Unsupported proxy type: {$proxyType}"),
+    default => throw new RuntimeException("Unsupported proxy type: {$proxyType}. Use socks5 or socks5h."),
 };
 
 $ch = curl_init((string) $options['url']);

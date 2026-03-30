@@ -14,17 +14,17 @@ class TuicProxyStartCommand extends Command
      */
     protected $signature = 'tuic:proxy-start
         {--config=config/tuic.yaml : TUIC 配置文件路径}
-        {--http-listen=127.0.0.1:8080 : 本地 HTTP 代理监听地址}
-        {--socks-listen=127.0.0.1:1080 : 本地 SOCKS5 代理监听地址}';
+        {--listen=127.0.0.1:1080 : 本地 SOCKS5 代理监听地址}
+        {--allow-ip=127.0.0.1 : 允许访问本地代理的来源 IP 或 CIDR}';
 
-    protected $description = 'Start the local TUIC HTTP and SOCKS5 proxy server';
+    protected $description = 'Start the local TUIC SOCKS5 proxy server';
 
     public function handle(): int
     {
         $script = base_path('vendor/18230/php-tuic-client/bin/tuic-client');
         $config = $this->resolvePath((string) $this->option('config'));
-        $httpListen = (string) $this->option('http-listen');
-        $socksListen = (string) $this->option('socks-listen');
+        $listen = (string) $this->option('listen');
+        $allowIp = (string) $this->option('allow-ip');
 
         if (!is_file($script)) {
             $this->error("Package script not found: {$script}");
@@ -38,11 +38,11 @@ class TuicProxyStartCommand extends Command
             return self::FAILURE;
         }
 
-        $command = $this->buildCommand($script, $config, $httpListen, $socksListen);
+        $command = $this->buildCommand($script, $config, $listen, $allowIp);
 
         $this->line("Starting TUIC proxy with config: {$config}");
-        $this->line("HTTP listen: {$httpListen}");
-        $this->line("SOCKS5 listen: {$socksListen}");
+        $this->line("SOCKS5 listen: {$listen}");
+        $this->line("Allow IP: {$allowIp}");
 
         passthru($command, $exitCode);
 
@@ -62,14 +62,14 @@ class TuicProxyStartCommand extends Command
         return base_path($path);
     }
 
-    private function buildCommand(string $script, string $config, string $httpListen, string $socksListen): string
+    private function buildCommand(string $script, string $config, string $listen, string $allowIp): string
     {
         return implode(' ', [
             escapeshellarg(PHP_BINARY),
             escapeshellarg($script),
             '--config=' . escapeshellarg($config),
-            '--http-listen=' . escapeshellarg($httpListen),
-            '--socks-listen=' . escapeshellarg($socksListen),
+            '--listen=' . escapeshellarg($listen),
+            '--allow-ip=' . escapeshellarg($allowIp),
         ]);
     }
 }

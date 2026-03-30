@@ -63,6 +63,25 @@ $env:QUICHE_LIB = 'E:\proxy\resources\native\windows-x64\quiche.dll'
 .\scripts\start-tuic-client.ps1
 ```
 
+## Runtime Files
+
+Recommended production outputs:
+
+- `TUIC_LOG_FILE`: line-oriented runtime log
+- `TUIC_STATUS_FILE`: JSON snapshot for counters and current node info
+- `TUIC_PID_FILE`: current process ID
+
+Typical fields inside `status-file`:
+
+- `listen`
+- `node.server`
+- `node.port`
+- `stats.accepted_connections_total`
+- `stats.closed_connections_total`
+- `stats.handshake_timeouts_total`
+- `stats.tuic_auth_success_total`
+- `stats.tuic_auth_failure_total`
+
 ## Build Native Library
 
 Use this only for `dev-main`, local development, or unsupported architectures. Official tagged releases already vendor the x64 libraries.
@@ -89,3 +108,17 @@ Linux / macOS:
 - Treat `skip-cert-verify: true` as a deliberate trust tradeoff.
 - Use a supervisor such as `systemd`, `supervisord`, or `launchd`.
 - Release tags already ship the x64 native libraries inside the Composer package. Keep your deployment process on the tagged archive or mirror the same `resources/native/` tree in your own artifact.
+
+## Deployment Checklist
+
+1. Install from a tagged release: `composer require 18230/php-tuic-client`
+2. Run `php bin/tuic-client doctor --config=/path/to/tuic.yaml`
+3. Start the local SOCKS5 runtime with `log-file`, `status-file`, and `pid-file`
+4. Probe with `curl --proxy socks5h://127.0.0.1:1080 https://api.ipify.org?format=json`
+5. Keep the process under `systemd`, `supervisord`, or `launchd`
+
+## Compatibility Notes
+
+- The core production path is the standalone SOCKS5 runtime.
+- `TuicRequestClient` exists as a convenience helper for framework projects and internally still depends on the same local SOCKS5 process.
+- HTTP proxy mode is intentionally unavailable in the current runtime.
