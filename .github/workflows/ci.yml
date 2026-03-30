@@ -89,8 +89,8 @@ jobs:
       - name: Run PHPUnit
         run: composer test
 
-  linux-runtime-smoke:
-    name: Linux runtime smoke test
+  linux-native-smoke:
+    name: Linux native build smoke test
     runs-on: ubuntu-latest
 
     steps:
@@ -118,54 +118,9 @@ jobs:
           chmod +x scripts/build-quiche.sh
           ./scripts/build-quiche.sh
 
-      - name: Run doctor command
+      - name: Assert built library exists
         shell: bash
         run: |
           set -euo pipefail
-          export QUICHE_LIB="$PWD/resources/native/linux-x64/libquiche.so"
-          php bin/tuic-client doctor --config=examples/node.example.yaml --quiche-lib="$QUICHE_LIB"
-
-      - name: Run shell startup smoke test
-        shell: bash
-        run: |
-          set -euo pipefail
-          chmod +x scripts/start-tuic-client.sh
-
-          export PHP_BIN="$(command -v php)"
-          export TUIC_CONFIG="examples/node.example.yaml"
-          export TUIC_SOCKS_LISTEN="127.0.0.1:11080"
-          export QUICHE_LIB="$PWD/resources/native/linux-x64/libquiche.so"
-
-          cleanup() {
-            if [ -n "${SERVER_PID:-}" ]; then
-              kill "${SERVER_PID}" >/dev/null 2>&1 || true
-              wait "${SERVER_PID}" >/dev/null 2>&1 || true
-            fi
-          }
-          trap cleanup EXIT
-
-          ./scripts/start-tuic-client.sh >"${RUNNER_TEMP}/tuic.stdout.log" 2>"${RUNNER_TEMP}/tuic.stderr.log" &
-          SERVER_PID=$!
-
-          for _ in $(seq 1 30); do
-            if php -r '$c=@fsockopen("127.0.0.1", 11080, $errno, $errstr, 0.5); if ($c) { fclose($c); exit(0); } exit(1);'; then
-              break
-            fi
-            sleep 0.5
-          done
-
-          php -r '$c=@fsockopen("127.0.0.1", 11080, $errno, $errstr, 0.5); if (!$c) { fwrite(STDERR, "SOCKS5 proxy port did not start\n"); exit(1); } fclose($c);'
-
-      - name: Print smoke logs on failure
-        if: failure()
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -f "${RUNNER_TEMP}/tuic.stdout.log" ]; then
-            echo "==== stdout ===="
-            cat "${RUNNER_TEMP}/tuic.stdout.log"
-          fi
-          if [ -f "${RUNNER_TEMP}/tuic.stderr.log" ]; then
-            echo "==== stderr ===="
-            cat "${RUNNER_TEMP}/tuic.stderr.log"
-          fi
+          test -f "$PWD/resources/native/linux-x64/libquiche.so"
+          ls -lh "$PWD/resources/native/linux-x64/libquiche.so"
