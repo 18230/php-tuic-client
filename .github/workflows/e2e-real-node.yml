@@ -43,6 +43,11 @@ jobs:
             throw 'Missing TUIC_REAL_NODE secret.'
           }
           Write-Host "::add-mask::$env:TUIC_REAL_NODE"
+          $runtimeDir = Join-Path $PWD 'runtime-e2e'
+          New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
+          $configPath = Join-Path $runtimeDir 'tuic-node.json'
+          [System.IO.File]::WriteAllText($configPath, $env:TUIC_REAL_NODE, [System.Text.UTF8Encoding]::new($false))
+          "TUIC_NODE_CONFIG=$configPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Verify packaged native library exists
         shell: pwsh
@@ -57,7 +62,7 @@ jobs:
       - name: Doctor
         shell: pwsh
         run: |
-          & php ./bin/tuic-client doctor "--node=$env:TUIC_REAL_NODE"
+          & php ./bin/tuic-client doctor "--config=$env:TUIC_NODE_CONFIG"
 
       - name: Start TUIC proxy and probe
         shell: pwsh
@@ -70,7 +75,7 @@ jobs:
           $proc = Start-Process -FilePath 'php' -WorkingDirectory $PWD -ArgumentList @(
             './bin/tuic-client',
             'run',
-            "--node=$env:TUIC_REAL_NODE",
+            "--config=$env:TUIC_NODE_CONFIG",
             "--listen=$env:TUIC_LISTEN"
           ) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
           try {
