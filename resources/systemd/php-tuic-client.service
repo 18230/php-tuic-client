@@ -1,0 +1,17 @@
+[Unit]
+Description=php-tuic-client local TUIC proxy
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/php-tuic-client
+EnvironmentFile=/opt/php-tuic-client/.env.tuic-client
+ExecStart=/opt/php-tuic-client/scripts/start-tuic-client.sh
+Restart=always
+RestartSec=3
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target

@@ -1,17 +1,9 @@
 #!/usr/bin/env php
-<?php
+<?php declare(strict_types=1);
 
-declare(strict_types=1);
-
-use Symfony\Component\Console\Application;
-use TuicClient\Command\DoctorCommand;
-use TuicClient\Command\RunCommand;
+use PhpTuic\Application;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
 
-$application = new Application('php-tuic-client', '0.1.0');
-$application->add(new RunCommand());
-$application->add(new DoctorCommand());
-$application->setDefaultCommand('run');
-
-$application->run();
+$application = new Application();
+exit($application->run());

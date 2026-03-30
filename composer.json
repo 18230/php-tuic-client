@@ -1,40 +1,54 @@
 {
     "name": "18230/php-tuic-client",
-    "description": "Pure PHP TUIC client scaffold with a CLI runtime and configuration tooling.",
+    "description": "Pure PHP TUIC client with local HTTP and SOCKS5 proxy runtimes.",
     "homepage": "https://github.com/18230/php-tuic-client",
     "type": "library",
     "license": "MIT",
     "keywords": [
         "php",
         "tuic",
-        "quic",
         "proxy",
-        "client"
+        "http-client",
+        "socks5",
+        "quic"
     ],
+    "suggest": {
+        "illuminate/support": "Optional for Laravel service-provider integration.",
+        "topthink/framework": "Optional for ThinkPHP service-provider integration."
+    },
     "require": {
-        "php": "^8.2",
+        "php": "^8.2.4",
+        "ext-curl": "*",
+        "ext-ffi": "*",
         "ext-json": "*",
         "ext-openssl": "*",
         "ext-sockets": "*",
-        "monolog/monolog": "^3.6",
-        "symfony/console": "^7.2",
-        "symfony/yaml": "^7.2"
+        "amphp/amp": "^3.1",
+        "amphp/byte-stream": "^2.1",
+        "amphp/quic": "dev-master",
+        "amphp/socket": "^2.3",
+        "symfony/console": "^7.3",
+        "symfony/yaml": "^7.3"
     },
     "require-dev": {
-        "phpunit/phpunit": "^11.4"
+        "phpunit/phpunit": "^11.5"
     },
     "autoload": {
         "psr-4": {
-            "TuicClient\\": "src/"
+            "PhpTuic\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "TuicClient\\Tests\\": "tests/"
+            "PhpTuic\\Tests\\": "tests/"
         }
     },
     "bin": [
-        "bin/tuic-client"
+        "bin/tuic-client",
+        "bin/tuic-request",
+        "bin/tuic-proxy-server",
+        "bin/tuic-http-request",
+        "bin/tuic-tcp-request"
     ],
     "scripts": {
         "test": "@php vendor/bin/phpunit"
@@ -44,9 +58,16 @@
         "source": "https://github.com/18230/php-tuic-client",
         "docs": "https://github.com/18230/php-tuic-client#readme"
     },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "PhpTuic\\Integration\\Laravel\\TuicServiceProvider"
+            ]
+        }
+    },
     "config": {
         "sort-packages": true
     },
-    "minimum-stability": "stable",
+    "minimum-stability": "dev",
     "prefer-stable": true
 }

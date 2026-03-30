@@ -1,130 +1,76 @@
-<?php
+<?php declare(strict_types=1);
 
-declare(strict_types=1);
+namespace PhpTuic\Command;
 
-namespace TuicClient\Command;
-
-use InvalidArgumentException;
+use PhpTuic\Config\NodeInputResolver;
+use PhpTuic\Runtime\ProxyRunner;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Input\InputOption;
 use Symfony\Component\Console\Output\OutputInterface;
-use TuicClient\Config\TuicClientConfig;
-use TuicClient\Config\TuicConfigLoader;
+use Symfony\Component\Console\Style\SymfonyStyle;
 
+#[AsCommand(name: 'run', description: 'Start the local HTTP and SOCKS5 proxy listeners and relay through a TUIC node.')]
 final class RunCommand extends Command
 {
-    public function __construct()
-    {
-        parent::__construct('run');
-    }
-
     protected function configure(): void
     {
-        $this->setDescription('Resolve TUIC client configuration and run the scaffold runtime.');
         $this
-            ->addOption('config', null, InputOption::VALUE_REQUIRED, 'Path to a YAML or JSON config file.')
-            ->addOption('server', null, InputOption::VALUE_REQUIRED, 'Remote TUIC server hostname.')
-            ->addOption('port', null, InputOption::VALUE_REQUIRED, 'Remote TUIC server port.')
-            ->addOption('uuid', null, InputOption::VALUE_REQUIRED, 'TUIC UUID.')
-            ->addOption('password', null, InputOption::VALUE_REQUIRED, 'TUIC password.')
-            ->addOption('sni', null, InputOption::VALUE_REQUIRED, 'TLS SNI override.')
-            ->addOption('alpn', null, InputOption::VALUE_REQUIRED, 'Comma-separated ALPN list.')
-            ->addOption('udp-relay-mode', null, InputOption::VALUE_REQUIRED, 'UDP relay mode.')
-            ->addOption('congestion-controller', null, InputOption::VALUE_REQUIRED, 'Congestion controller.')
-            ->addOption('allow-insecure', null, InputOption::VALUE_REQUIRED, 'Whether to allow insecure TLS (0 or 1).')
-            ->addOption('local', null, InputOption::VALUE_REQUIRED, 'Local bind endpoint, for example 127.0.0.1:1080.')
-            ->addOption('log-level', null, InputOption::VALUE_REQUIRED, 'Log level for the future runtime.')
-            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Resolve and print configuration without starting the runtime.');
+            ->addOption('node', null, InputOption::VALUE_REQUIRED, 'Inline TUIC node config in YAML or JSON.')
+            ->addOption('config', null, InputOption::VALUE_REQUIRED, 'Path to a YAML or JSON file that contains the TUIC node config.')
+            ->addOption('node-name', null, InputOption::VALUE_REQUIRED, 'Optional node name when the config contains multiple proxies.')
+            ->addOption('http-listen', null, InputOption::VALUE_REQUIRED, 'Local HTTP proxy listen address.', '127.0.0.1:8080')
+            ->addOption('socks-listen', null, InputOption::VALUE_REQUIRED, 'Local SOCKS5 proxy listen address.', '127.0.0.1:1080')
+            ->addOption('no-http', null, InputOption::VALUE_NONE, 'Disable the local HTTP proxy listener.')
+            ->addOption('no-socks', null, InputOption::VALUE_NONE, 'Disable the local SOCKS5 proxy listener.')
+            ->addOption('dry-run', null, InputOption::VALUE_NONE, 'Parse the configuration and print the resolved runtime without starting listeners.');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
-        try {
-            $config = $this->resolveConfig($input);
-        } catch (InvalidArgumentException $exception) {
-            $output->writeln(sprintf('<error>%s</error>', $exception->getMessage()));
+        $io = new SymfonyStyle($input, $output);
+        $node = (new NodeInputResolver())->resolve(
+            inlineNode: self::nullableString($input->getOption('node')),
+            configPath: self::nullableString($input->getOption('config')),
+            nodeName: self::nullableString($input->getOption('node-name')),
+        );
 
-            return self::INVALID;
-        }
+        $httpListen = (string) $input->getOption('http-listen');
+        $socksListen = (string) $input->getOption('socks-listen');
+        $httpEnabled = !$input->getOption('no-http');
+        $socksEnabled = !$input->getOption('no-socks');
 
-        $output->writeln('<info>Resolved TUIC client configuration</info>');
-        foreach ($this->summaryLines($config) as $line) {
-            $output->writeln(sprintf(' - %s', $line));
+        if (!$httpEnabled && !$socksEnabled) {
+            throw new \RuntimeException('Both proxy listeners are disabled.');
         }
 
         if ($input->getOption('dry-run')) {
-            $output->writeln('<comment>Dry run successful. The TUIC transport layer is intentionally left for the next implementation phase.</comment>');
+            $io->title('tuic-client dry run');
+            $io->writeln(sprintf('Node: %s (%s:%d)', $node->name, $node->server, $node->port));
+            $io->writeln(sprintf('ALPN: %s', implode(', ', $node->alpn)));
+            $io->writeln(sprintf('HTTP listener: %s', $httpEnabled ? $httpListen : 'disabled'));
+            $io->writeln(sprintf('SOCKS5 listener: %s', $socksEnabled ? $socksListen : 'disabled'));
+            $io->writeln(sprintf('TUIC cert verification: %s', $node->skipCertVerify ? 'disabled' : 'enabled'));
 
-            return self::SUCCESS;
+            return Command::SUCCESS;
         }
 
-        $output->writeln('<comment>The php-tuic-client project has been initialized, but the TUIC transport runtime is not implemented yet. Re-run with --dry-run for validation only.</comment>');
+        $runner = new ProxyRunner(
+            node: $node,
+            httpListen: $httpListen,
+            socksListen: $socksListen,
+            enableHttp: $httpEnabled,
+            enableSocks: $socksEnabled,
+        );
 
-        return self::FAILURE;
+        $runner->run();
+
+        return Command::SUCCESS;
     }
 
-    private function resolveConfig(InputInterface $input): TuicClientConfig
+    private static function nullableString(mixed $value): ?string
     {
-        $loader = new TuicConfigLoader();
-        $payload = [];
-
-        $configPath = $input->getOption('config');
-        if (is_string($configPath) && $configPath !== '') {
-            $payload = $loader->loadRawArray($configPath);
-        }
-
-        $node = isset($payload['node']) && is_array($payload['node']) ? $payload['node'] : $payload;
-        $runtime = isset($payload['runtime']) && is_array($payload['runtime']) ? $payload['runtime'] : [];
-
-        foreach ([
-            'server' => 'server',
-            'port' => 'port',
-            'uuid' => 'uuid',
-            'password' => 'password',
-            'sni' => 'sni',
-            'alpn' => 'alpn',
-            'udp-relay-mode' => 'udp_relay_mode',
-            'congestion-controller' => 'congestion_controller',
-            'allow-insecure' => 'allow_insecure',
-        ] as $option => $key) {
-            $value = $input->getOption($option);
-            if ($value !== null) {
-                $node[$key] = $value;
-            }
-        }
-
-        foreach ([
-            'local' => 'local',
-            'log-level' => 'log_level',
-        ] as $option => $key) {
-            $value = $input->getOption($option);
-            if ($value !== null) {
-                $runtime[$key] = $value;
-            }
-        }
-
-        return $loader->fromArray([
-            'node' => $node,
-            'runtime' => $runtime,
-        ]);
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function summaryLines(TuicClientConfig $config): array
-    {
-        return [
-            sprintf('server: %s:%d', $config->node->server, $config->node->port),
-            sprintf('uuid: %s', $config->node->uuid),
-            sprintf('local bind: %s', $config->runtime->local),
-            sprintf('sni: %s', $config->node->sni ?? '(auto)'),
-            sprintf('alpn: %s', implode(', ', $config->node->alpn)),
-            sprintf('udp relay mode: %s', $config->node->udpRelayMode),
-            sprintf('congestion controller: %s', $config->node->congestionController),
-            sprintf('allow insecure: %s', $config->node->allowInsecure ? 'yes' : 'no'),
-            sprintf('log level: %s', $config->runtime->logLevel),
-        ];
+        return is_string($value) && $value !== '' ? $value : null;
     }
 }

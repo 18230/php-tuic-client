@@ -1,22 +1,41 @@
-# Packagist Publishing Guide
+# Packagist Publishing
 
-## Recommended First Release
+Package name:
 
-- Repository: `https://github.com/18230/php-tuic-client`
-- Composer package name: `18230/php-tuic-client`
-- First Packagist version tag: `v0.1.0`
+- `18230/php-tuic-client`
 
-## Submit the Package
+Repository:
 
-1. Open [Packagist Submit](https://packagist.org/packages/submit).
-2. Paste `https://github.com/18230/php-tuic-client`.
-3. Submit after the `v0.1.0` tag is available.
+- `https://github.com/18230/php-tuic-client`
 
-## Auto Updates
+## Initial Submission
 
-This project ships the same GitHub-based Packagist sync workflow pattern as `php-shadowsocks-client`.
+1. Open [Packagist Submit](https://packagist.org/packages/submit)
+2. Submit the repository URL
+3. Confirm that Packagist detects package `18230/php-tuic-client`
+4. Confirm that the intended release tag is visible
 
-- Workflow: `.github/workflows/packagist-sync.yml`
-- Required secret: `PACKAGIST_API_TOKEN`
-- Recommended variable: `PACKAGIST_USERNAME`
-  For this account, set it to `aiqq363927173`.
+## Automatic Updates
+
+Two automation paths are included:
+
+1. GitHub Actions workflow
+   - [`.github/workflows/packagist-sync.yml`](../../.github/workflows/packagist-sync.yml)
+2. Native GitHub webhook helper
+   - [scripts/setup-packagist-github-hook.ps1](../../scripts/setup-packagist-github-hook.ps1)
+   - [scripts/setup-packagist-github-hook.sh](../../scripts/setup-packagist-github-hook.sh)
+
+Recommended GitHub configuration:
+
+- repository secret `PACKAGIST_API_TOKEN`
+- repository variable `PACKAGIST_USERNAME`
+
+## Before Tagging
+
+Run:
+
+```bash
+composer validate --strict
+composer test
+php bin/tuic-client doctor --config=examples/node.example.yaml
+```

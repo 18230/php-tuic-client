@@ -1,0 +1,6 @@
+; Copy these lines into the PHP 8.2.4+ php.ini used by your application.
+; Replace the placeholder path with the absolute path to your CA bundle.
+
+curl.cainfo = "/absolute/path/to/cacert.pem"
+openssl.cafile = "/absolute/path/to/cacert.pem"
+; openssl.capath = "/absolute/path/to/certs-directory"

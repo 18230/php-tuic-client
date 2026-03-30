@@ -1,42 +1,44 @@
-#!/usr/bin/env sh
-set -eu
+#!/usr/bin/env bash
+set -euo pipefail
 
 PHP_BIN="${PHP_BIN:-php}"
 APP_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
 
-: "${TUIC_SERVER:?TUIC_SERVER is required}"
-: "${TUIC_PORT:?TUIC_PORT is required}"
-: "${TUIC_UUID:?TUIC_UUID is required}"
-: "${TUIC_PASSWORD:?TUIC_PASSWORD is required}"
+TUIC_CONFIG="${TUIC_CONFIG:-}"
+TUIC_NODE="${TUIC_NODE:-}"
+TUIC_NODE_NAME="${TUIC_NODE_NAME:-}"
+TUIC_HTTP_LISTEN="${TUIC_HTTP_LISTEN:-127.0.0.1:8080}"
+TUIC_SOCKS_LISTEN="${TUIC_SOCKS_LISTEN:-127.0.0.1:1080}"
+TUIC_NO_HTTP="${TUIC_NO_HTTP:-0}"
+TUIC_NO_SOCKS="${TUIC_NO_SOCKS:-0}"
 
-TUIC_SNI="${TUIC_SNI:-}"
-TUIC_ALPN="${TUIC_ALPN:-h3}"
-TUIC_UDP_RELAY_MODE="${TUIC_UDP_RELAY_MODE:-native}"
-TUIC_CONGESTION_CONTROLLER="${TUIC_CONGESTION_CONTROLLER:-bbr}"
-TUIC_ALLOW_INSECURE="${TUIC_ALLOW_INSECURE:-0}"
-TUIC_LOCAL="${TUIC_LOCAL:-127.0.0.1:1080}"
-TUIC_LOG_LEVEL="${TUIC_LOG_LEVEL:-info}"
-TUIC_DRY_RUN="${TUIC_DRY_RUN:-1}"
-
-set -- \
-  "$PHP_BIN" "$APP_ROOT/bin/tuic-client" run \
-  "--server=$TUIC_SERVER" \
-  "--port=$TUIC_PORT" \
-  "--uuid=$TUIC_UUID" \
-  "--password=$TUIC_PASSWORD" \
-  "--alpn=$TUIC_ALPN" \
-  "--udp-relay-mode=$TUIC_UDP_RELAY_MODE" \
-  "--congestion-controller=$TUIC_CONGESTION_CONTROLLER" \
-  "--allow-insecure=$TUIC_ALLOW_INSECURE" \
-  "--local=$TUIC_LOCAL" \
-  "--log-level=$TUIC_LOG_LEVEL"
-
-if [ -n "$TUIC_SNI" ]; then
-  set -- "$@" "--sni=$TUIC_SNI"
+if [[ -z "$TUIC_CONFIG" && -z "$TUIC_NODE" ]]; then
+  echo "TUIC_CONFIG or TUIC_NODE is required." >&2
+  exit 1
 fi
 
-if [ "$TUIC_DRY_RUN" = "1" ]; then
-  set -- "$@" "--dry-run"
+args=("$PHP_BIN" "$APP_ROOT/bin/tuic-client")
+
+if [[ -n "$TUIC_CONFIG" ]]; then
+  args+=("--config=$TUIC_CONFIG")
 fi
 
-exec "$@"
+if [[ -n "$TUIC_NODE" ]]; then
+  args+=("--node=$TUIC_NODE")
+fi
+
+if [[ -n "$TUIC_NODE_NAME" ]]; then
+  args+=("--node-name=$TUIC_NODE_NAME")
+fi
+
+args+=("--http-listen=$TUIC_HTTP_LISTEN" "--socks-listen=$TUIC_SOCKS_LISTEN")
+
+if [[ "$TUIC_NO_HTTP" == "1" ]]; then
+  args+=("--no-http")
+fi
+
+if [[ "$TUIC_NO_SOCKS" == "1" ]]; then
+  args+=("--no-socks")
+fi
+
+exec "${args[@]}"

@@ -1,20 +1,24 @@
 # 发布检查清单
 
-## 本地验证
+## 发布前
 
-运行：
+- 确认包名是 `18230/php-tuic-client`
+- 确认 `composer.json`、`README.md`、`README.zh-CN.md` 已同步
+- 确认没有提交真实 TUIC 凭据
+- 确认 `examples/node.user.yaml` 只有脱敏示例
+- 运行 `composer validate --strict`
+- 运行 `composer test`
+- 运行 `php bin/tuic-client doctor --config=examples/node.example.yaml`
+
+## 打标签
 
 ```bash
-composer validate --strict
-composer test
-php bin/tuic-client doctor --config=examples/node.example.yaml
-php bin/tuic-client run --config=examples/node.example.yaml --dry-run
-php bin/tuic-client --help
+git tag v0.x.y
+git push origin main --tags
 ```
 
-## 第一次公开发布
+## 打标签后
 
-- 确认 `composer.json` 里的最终包名
-- 确认最终仓库地址
-- 检查 changelog 和 README
-- 以 `v0.1.0` 作为首个骨架版本发布
+- 检查 GitHub Actions CI 是否通过
+- 检查 Packagist 自动同步是否成功
+- 在一个干净项目里验证 `composer require 18230/php-tuic-client`

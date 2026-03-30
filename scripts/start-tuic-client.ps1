@@ -1,44 +1,65 @@
-$ErrorActionPreference = 'Stop'
-
-if (-not $env:PHP_BIN -or [string]::IsNullOrWhiteSpace($env:PHP_BIN)) {
-    $env:PHP_BIN = 'php'
-}
-
-$root = Split-Path -Parent $PSScriptRoot
-
-if ([string]::IsNullOrWhiteSpace($env:TUIC_SERVER)) { throw 'TUIC_SERVER is required.' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_PORT)) { throw 'TUIC_PORT is required.' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_UUID)) { throw 'TUIC_UUID is required.' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_PASSWORD)) { throw 'TUIC_PASSWORD is required.' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_ALPN)) { $env:TUIC_ALPN = 'h3' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_UDP_RELAY_MODE)) { $env:TUIC_UDP_RELAY_MODE = 'native' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_CONGESTION_CONTROLLER)) { $env:TUIC_CONGESTION_CONTROLLER = 'bbr' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_ALLOW_INSECURE)) { $env:TUIC_ALLOW_INSECURE = '0' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_LOCAL)) { $env:TUIC_LOCAL = '127.0.0.1:1080' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_LOG_LEVEL)) { $env:TUIC_LOG_LEVEL = 'info' }
-if ([string]::IsNullOrWhiteSpace($env:TUIC_DRY_RUN)) { $env:TUIC_DRY_RUN = '1' }
-
-$arguments = @(
-    (Join-Path $root 'bin\tuic-client'),
-    'run',
-    "--server=$($env:TUIC_SERVER)",
-    "--port=$($env:TUIC_PORT)",
-    "--uuid=$($env:TUIC_UUID)",
-    "--password=$($env:TUIC_PASSWORD)",
-    "--alpn=$($env:TUIC_ALPN)",
-    "--udp-relay-mode=$($env:TUIC_UDP_RELAY_MODE)",
-    "--congestion-controller=$($env:TUIC_CONGESTION_CONTROLLER)",
-    "--allow-insecure=$($env:TUIC_ALLOW_INSECURE)",
-    "--local=$($env:TUIC_LOCAL)",
-    "--log-level=$($env:TUIC_LOG_LEVEL)"
+param(
+    [string] $Config = '',
+    [string] $Node = '',
+    [string] $NodeName = '',
+    [string] $HttpListen = '',
+    [string] $SocksListen = ''
 )
 
-if (-not [string]::IsNullOrWhiteSpace($env:TUIC_SNI)) {
-    $arguments += "--sni=$($env:TUIC_SNI)"
+$ErrorActionPreference = 'Stop'
+
+$phpBin = if ($env:PHP_BIN) { $env:PHP_BIN } else { 'php' }
+$appRoot = Split-Path -Parent $PSScriptRoot
+
+if (-not $Config) {
+    $Config = $env:TUIC_CONFIG
 }
 
-if ($env:TUIC_DRY_RUN -eq '1') {
-    $arguments += '--dry-run'
+if (-not $Node) {
+    $Node = $env:TUIC_NODE
 }
 
-& $env:PHP_BIN @arguments
+if (-not $NodeName) {
+    $NodeName = $env:TUIC_NODE_NAME
+}
+
+if (-not $HttpListen) {
+    $HttpListen = if ($env:TUIC_HTTP_LISTEN) { $env:TUIC_HTTP_LISTEN } else { '127.0.0.1:8080' }
+}
+
+if (-not $SocksListen) {
+    $SocksListen = if ($env:TUIC_SOCKS_LISTEN) { $env:TUIC_SOCKS_LISTEN } else { '127.0.0.1:1080' }
+}
+
+if ([string]::IsNullOrWhiteSpace($Config) -and [string]::IsNullOrWhiteSpace($Node)) {
+    throw 'TUIC_CONFIG or TUIC_NODE is required.'
+}
+
+$arguments = @(
+    (Join-Path $appRoot 'bin\tuic-client')
+    "--http-listen=$HttpListen"
+    "--socks-listen=$SocksListen"
+)
+
+if (-not [string]::IsNullOrWhiteSpace($Config)) {
+    $arguments += "--config=$Config"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($Node)) {
+    $arguments += "--node=$Node"
+}
+
+if (-not [string]::IsNullOrWhiteSpace($NodeName)) {
+    $arguments += "--node-name=$NodeName"
+}
+
+if ($env:TUIC_NO_HTTP -eq '1') {
+    $arguments += '--no-http'
+}
+
+if ($env:TUIC_NO_SOCKS -eq '1') {
+    $arguments += '--no-socks'
+}
+
+& $phpBin @arguments
+exit $LASTEXITCODE

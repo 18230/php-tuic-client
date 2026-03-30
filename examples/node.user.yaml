@@ -1,0 +1,16 @@
+proxies:
+  # 这是一个可直接复制修改的模板文件。
+  # 发布或分享代码时，请只保留这种脱敏配置，不要放真实节点密码。
+  - name: "美国 001"
+    type: tuic
+    server: your-tuic-server.example.com
+    port: 443
+    uuid: 11111111-1111-1111-1111-111111111111
+    password: replace-with-your-password
+    alpn: [h3]
+    disable-sni: false
+    reduce-rtt: false
+    udp-relay-mode: native
+    congestion-controller: bbr
+    skip-cert-verify: false
+    sni: your-tuic-server.example.com

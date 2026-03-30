@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.github.18230.php-tuic-client</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>/opt/php-tuic-client/scripts/start-tuic-client.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/opt/php-tuic-client</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PHP_BIN</key>
+        <string>/usr/local/bin/php</string>
+        <key>TUIC_CONFIG</key>
+        <string>/opt/php-tuic-client/config/tuic.yaml</string>
+        <key>TUIC_HTTP_LISTEN</key>
+        <string>127.0.0.1:8080</string>
+        <key>TUIC_SOCKS_LISTEN</key>
+        <string>127.0.0.1:1080</string>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/php-tuic-client.stdout.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/php-tuic-client.stderr.log</string>
+</dict>
+</plist>

@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit bootstrap="vendor/autoload.php"
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          colors="true"
+         bootstrap="vendor/autoload.php"
          cacheDirectory=".phpunit.cache">
     <testsuites>
-        <testsuite name="default">
+        <testsuite name="php-tuic-client">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

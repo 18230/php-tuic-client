@@ -1,22 +1,41 @@
 # Packagist 发布说明
 
-## 推荐的首个版本
+包名：
 
-- 仓库地址：`https://github.com/18230/php-tuic-client`
-- Composer 包名：`18230/php-tuic-client`
-- 首个建议提交到 Packagist 的版本标签：`v0.1.0`
+- `18230/php-tuic-client`
 
-## 提交方式
+仓库：
 
-1. 打开 [Packagist Submit](https://packagist.org/packages/submit)。
-2. 填入 `https://github.com/18230/php-tuic-client`。
-3. 等 `v0.1.0` tag 就绪后提交。
+- `https://github.com/18230/php-tuic-client`
 
-## 自动更新
+## 首次提交
 
-这个项目沿用了和 `php-shadowsocks-client` 一样的 GitHub 自动同步方案。
+1. 打开 [Packagist Submit](https://packagist.org/packages/submit)
+2. 提交仓库地址
+3. 确认识别出的包名是 `18230/php-tuic-client`
+4. 确认目标版本标签已经可见
 
-- 工作流：`.github/workflows/packagist-sync.yml`
-- 必需 secret：`PACKAGIST_API_TOKEN`
-- 建议 variable：`PACKAGIST_USERNAME`
-  当前账号建议设置为 `aiqq363927173`。
+## 自动同步
+
+仓库里已经提供了两条自动同步路径：
+
+1. GitHub Actions 工作流
+   - [`.github/workflows/packagist-sync.yml`](../../.github/workflows/packagist-sync.yml)
+2. 原生 GitHub webhook 脚本
+   - [scripts/setup-packagist-github-hook.ps1](../../scripts/setup-packagist-github-hook.ps1)
+   - [scripts/setup-packagist-github-hook.sh](../../scripts/setup-packagist-github-hook.sh)
+
+推荐的 GitHub 配置：
+
+- 仓库 secret `PACKAGIST_API_TOKEN`
+- 仓库 variable `PACKAGIST_USERNAME`
+
+## 打标签前
+
+执行：
+
+```bash
+composer validate --strict
+composer test
+php bin/tuic-client doctor --config=examples/node.example.yaml
+```

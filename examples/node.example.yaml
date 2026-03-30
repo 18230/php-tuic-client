@@ -1,15 +1,14 @@
-node:
-  server: tuic.example.com
-  port: 443
-  uuid: 11111111-2222-3333-4444-555555555555
-  password: change-me
-  sni: tuic.example.com
-  alpn:
-    - h3
-  udp_relay_mode: native
-  congestion_controller: bbr
-  allow_insecure: false
-
-runtime:
-  local: 127.0.0.1:1080
-  log_level: info
+proxies:
+  - name: demo-tuic
+    type: tuic
+    server: example.com
+    port: 443
+    uuid: 00000000-0000-4000-8000-000000000000
+    password: replace-with-your-password
+    alpn: [h3]
+    disable-sni: false
+    reduce-rtt: false
+    udp-relay-mode: native
+    congestion-controller: bbr
+    skip-cert-verify: false
+    sni: example.com

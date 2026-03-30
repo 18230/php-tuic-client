@@ -34,8 +34,6 @@ jobs:
 
       - name: Notify Packagist update endpoint
         if: ${{ env.PACKAGIST_API_TOKEN != '' }}
-        env:
-          PACKAGIST_API_TOKEN: ${{ env.PACKAGIST_API_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail

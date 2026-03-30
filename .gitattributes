@@ -1,6 +1,5 @@
 /vendor export-ignore
 /.phpunit.cache export-ignore
 /tests export-ignore
-/bin/workerman.log export-ignore
 /.gitignore export-ignore
 /.gitattributes export-ignore

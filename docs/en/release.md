@@ -1,20 +1,24 @@
 # Release Checklist
 
-## Local Validation
+## Before Release
 
-Run:
+- confirm the package name is `18230/php-tuic-client`
+- confirm `composer.json`, `README.md`, and `README.zh-CN.md` are in sync
+- confirm no real TUIC credentials are committed
+- confirm `examples/node.user.yaml` only contains redacted values
+- run `composer validate --strict`
+- run `composer test`
+- run `php bin/tuic-client doctor --config=examples/node.example.yaml`
+
+## Tagging
 
 ```bash
-composer validate --strict
-composer test
-php bin/tuic-client doctor --config=examples/node.example.yaml
-php bin/tuic-client run --config=examples/node.example.yaml --dry-run
-php bin/tuic-client --help
+git tag v0.x.y
+git push origin main --tags
 ```
 
-## First Public Release
+## After Tagging
 
-- Confirm the final package name in `composer.json`
-- Confirm the final repository URL
-- Review the changelog and README
-- Tag `v0.1.0` as the first scaffold release
+- verify GitHub Actions CI is green
+- verify Packagist sync completed
+- verify installation from Packagist in a clean project

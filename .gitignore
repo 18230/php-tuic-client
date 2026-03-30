@@ -1,8 +1,8 @@
 /vendor/
+composer.phar
 /.phpunit.cache/
-/bin/workerman.log
 /.github/.tmp/
-/.runtime/
 /runtime/
 /runtime-test/
+/coverage/
 /*.log
