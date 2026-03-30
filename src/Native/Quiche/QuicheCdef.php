@@ -82,6 +82,7 @@ const char *quiche_version(void);
 quiche_config *quiche_config_new(uint32_t version);
 void quiche_config_free(quiche_config *config);
 void quiche_config_verify_peer(quiche_config *config, bool v);
+void quiche_config_log_keys(quiche_config *config);
 int quiche_config_set_application_protos(quiche_config *config, const uint8_t *protos, size_t protos_len);
 void quiche_config_set_max_idle_timeout(quiche_config *config, uint64_t v);
 void quiche_config_set_max_recv_udp_payload_size(quiche_config *config, size_t v);
@@ -103,6 +104,9 @@ uint64_t quiche_conn_timeout_as_millis(const quiche_conn *conn);
 void quiche_conn_on_timeout(quiche_conn *conn);
 bool quiche_conn_is_established(const quiche_conn *conn);
 bool quiche_conn_is_closed(const quiche_conn *conn);
+bool quiche_conn_peer_error(const quiche_conn *conn, bool *is_app, uint64_t *error_code, const uint8_t **reason, size_t *reason_len);
+bool quiche_conn_local_error(const quiche_conn *conn, bool *is_app, uint64_t *error_code, const uint8_t **reason, size_t *reason_len);
+void quiche_conn_application_proto(const quiche_conn *conn, const uint8_t **out, size_t *out_len);
 int quiche_conn_close(quiche_conn *conn, bool app, uint64_t err, const uint8_t *reason, size_t reason_len);
 
 ssize_t quiche_conn_stream_send(quiche_conn *conn, uint64_t stream_id, const uint8_t *buf, size_t buf_len, bool fin, uint64_t *out_error_code);

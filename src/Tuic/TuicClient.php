@@ -30,6 +30,7 @@ final class TuicClient
     private ?TimerInterface $authTimer = null;
     private ?string $keylogPath = null;
     private bool $authenticated = false;
+    private bool $authCommandSent = false;
     private int $nextBidiStreamId = 0;
     private int $nextUniStreamId = 2;
     private string $resolvedPeerIp = '';
@@ -144,6 +145,7 @@ final class TuicClient
 
         $this->pendingRelays = [];
         $this->authenticated = false;
+        $this->authCommandSent = false;
 
         if ($this->timeoutTimer !== null) {
             $this->loop->cancelTimer($this->timeoutTimer);
@@ -215,6 +217,7 @@ final class TuicClient
         }
 
         $this->ffi->quiche_config_verify_peer($config, !$this->node->skipCertVerify);
+        $this->ffi->quiche_config_log_keys($config);
         $this->ffi->quiche_config_set_max_idle_timeout($config, 30_000);
         $this->ffi->quiche_config_set_max_recv_udp_payload_size($config, 1_350);
         $this->ffi->quiche_config_set_max_send_udp_payload_size($config, 1_350);
@@ -255,9 +258,9 @@ final class TuicClient
             $serverName,
             $scidBuffer,
             strlen($scid),
-            $this->localAddress?->asSockaddrPointer(),
+            $this->localAddress?->asConstSockaddrPointer(),
             $this->localAddress?->length ?? 0,
-            $this->peerAddress?->asSockaddrPointer(),
+            $this->peerAddress?->asConstSockaddrPointer(),
             $this->peerAddress?->length ?? 0,
             $this->config,
         );
@@ -282,9 +285,9 @@ final class TuicClient
             }
 
             $recvInfo = $this->ffi->new('quiche_recv_info');
-            $recvInfo->from = \FFI::cast('struct sockaddr *', $this->peerAddress?->asSockaddrPointer());
+            $recvInfo->from = $this->peerAddress?->asMutableSockaddrPointer();
             $recvInfo->from_len = $this->peerAddress?->length ?? 0;
-            $recvInfo->to = \FFI::cast('struct sockaddr *', $this->localAddress?->asSockaddrPointer());
+            $recvInfo->to = $this->localAddress?->asMutableSockaddrPointer();
             $recvInfo->to_len = $this->localAddress?->length ?? 0;
 
             $buffer = $this->copyToCBuffer($packet);
@@ -629,10 +632,12 @@ final class TuicClient
                 return;
             }
 
+            $this->logEstablishedProtocol();
             $streamId = $this->nextUniStreamId;
             $this->nextUniStreamId += 4;
             $token = TlsExporter::deriveTuicToken($secret, $this->node->uuid, $this->node->password);
             $payload = CommandEncoder::authenticate($this->node->uuid, $token);
+            $this->log('Sending TUIC authenticate command.');
             $buffer = $this->copyToCBuffer($payload);
             $error = $this->ffi->new('uint64_t[1]');
             $written = $this->ffi->quiche_conn_stream_send(
@@ -650,6 +655,7 @@ final class TuicClient
                 return;
             }
 
+            $this->authCommandSent = true;
             $this->authenticated = true;
             $this->flushEgress();
             $pending = $this->pendingRelays;
@@ -671,7 +677,7 @@ final class TuicClient
             return;
         }
 
-        $this->shutdownAllStreams('The QUIC connection was closed by the remote peer.');
+        $this->shutdownAllStreams($this->describeConnectionClose());
     }
 
     private function shutdownAllStreams(string $reason): void
@@ -683,7 +689,9 @@ final class TuicClient
 
         foreach ($this->pendingRelays as $relay) {
             ($relay['onError'])(new \RuntimeException($reason));
-            fclose($relay['local']);
+            if (is_resource($relay['local'])) {
+                fclose($relay['local']);
+            }
         }
 
         $this->pendingRelays = [];
@@ -778,6 +786,80 @@ final class TuicClient
         @unlink($path);
 
         return $path;
+    }
+
+    private function logEstablishedProtocol(): void
+    {
+        if ($this->connection === null || $this->ffi === null) {
+            return;
+        }
+
+        $proto = $this->ffi->new('const uint8_t *[1]');
+        $length = $this->ffi->new('size_t[1]');
+        $this->ffi->quiche_conn_application_proto($this->connection, $proto, $length);
+
+        if ($length[0] <= 0 || $proto[0] === null) {
+            return;
+        }
+
+        $name = \FFI::string($proto[0], (int) $length[0]);
+        if ($name !== '') {
+            $this->log("Negotiated ALPN: {$name}");
+        }
+    }
+
+    private function describeConnectionClose(): string
+    {
+        if ($this->connection === null || $this->ffi === null) {
+            return 'The QUIC connection was closed.';
+        }
+
+        $peerReason = $this->describePeerOrLocalClose(local: false);
+        if ($peerReason !== null) {
+            return $peerReason;
+        }
+
+        $localReason = $this->describePeerOrLocalClose(local: true);
+        if ($localReason !== null) {
+            return $localReason;
+        }
+
+        return $this->authCommandSent
+            ? 'The QUIC connection was closed after the TUIC authenticate command was sent.'
+            : 'The QUIC connection was closed before TUIC authentication completed.';
+    }
+
+    private function describePeerOrLocalClose(bool $local): ?string
+    {
+        if ($this->connection === null || $this->ffi === null) {
+            return null;
+        }
+
+        $isApp = $this->ffi->new('bool[1]');
+        $errorCode = $this->ffi->new('uint64_t[1]');
+        $reason = $this->ffi->new('const uint8_t *[1]');
+        $reasonLength = $this->ffi->new('size_t[1]');
+
+        $hasError = $local
+            ? $this->ffi->quiche_conn_local_error($this->connection, $isApp, $errorCode, $reason, $reasonLength)
+            : $this->ffi->quiche_conn_peer_error($this->connection, $isApp, $errorCode, $reason, $reasonLength);
+
+        if (!$hasError) {
+            return null;
+        }
+
+        $scope = $local ? 'locally' : 'by the remote peer';
+        $type = $isApp[0] ? 'application' : 'transport';
+        $message = "The QUIC connection was closed {$scope} ({$type} error {$errorCode[0]}";
+
+        if ($reasonLength[0] > 0 && $reason[0] !== null) {
+            $detail = trim(\FFI::string($reason[0], (int) $reasonLength[0]));
+            if ($detail !== '') {
+                $message .= ", reason: {$detail}";
+            }
+        }
+
+        return $message . ').';
     }
 
     private function log(string $message): void

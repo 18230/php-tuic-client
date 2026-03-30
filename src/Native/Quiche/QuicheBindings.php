@@ -26,7 +26,9 @@ final class QuicheBindings
 
     public function version(): string
     {
-        return \FFI::string($this->ffi->quiche_version());
+        $version = $this->ffi->quiche_version();
+
+        return is_string($version) ? $version : \FFI::string($version);
     }
 
     public static function afInet(): int

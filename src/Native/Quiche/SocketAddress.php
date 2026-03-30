@@ -8,6 +8,7 @@ final class SocketAddress
      * @param \FFI\CData $storage
      */
     private function __construct(
+        private readonly \FFI $ffi,
         public readonly \FFI\CData $storage,
         public readonly int $length,
         public readonly string $host,
@@ -30,7 +31,7 @@ final class SocketAddress
             $address->sin_port = self::hostToNetworkShort($port);
             $address->sin_addr->s_addr = unpack('Nip', $packed)['ip'];
 
-            return new self($address, \FFI::sizeof($address), $host, $port, QuicheBindings::afInet());
+            return new self($ffi, $address, \FFI::sizeof($address), $host, $port, QuicheBindings::afInet());
         }
 
         if (strlen($packed) === 16) {
@@ -42,7 +43,7 @@ final class SocketAddress
                 $address->sin6_addr->s6_addr[$i] = ord($packed[$i]);
             }
 
-            return new self($address, \FFI::sizeof($address), $host, $port, QuicheBindings::afInet6());
+            return new self($ffi, $address, \FFI::sizeof($address), $host, $port, QuicheBindings::afInet6());
         }
 
         throw new \RuntimeException("Unsupported IP address family for {$host}");
@@ -80,9 +81,14 @@ final class SocketAddress
     /**
      * @return \FFI\CData
      */
-    public function asSockaddrPointer(): \FFI\CData
+    public function asConstSockaddrPointer(): \FFI\CData
     {
-        return \FFI::addr($this->storage);
+        return $this->ffi->cast('const struct sockaddr *', \FFI::addr($this->storage));
+    }
+
+    public function asMutableSockaddrPointer(): \FFI\CData
+    {
+        return $this->ffi->cast('struct sockaddr *', \FFI::addr($this->storage));
     }
 
     private static function hostToNetworkShort(int $port): int

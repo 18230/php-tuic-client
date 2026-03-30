@@ -1,0 +1,123 @@
+name: TUIC Real Node E2E
+
+on:
+  workflow_dispatch:
+
+jobs:
+  e2e:
+    name: ${{ matrix.os }} TUIC E2E
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            native_triplet: linux-x64
+          - os: windows-latest
+            native_triplet: windows-x64
+          - os: macos-15-intel
+            native_triplet: macos-x64
+    env:
+      TUIC_REAL_NODE: ${{ secrets.TUIC_REAL_NODE }}
+      TUIC_LISTEN: 127.0.0.1:11084
+      TUIC_TEST_URL: https://api.ipify.org?format=json
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: curl, ffi, json, openssl, sockets
+          ini-values: ffi.enable=true
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Validate secret input
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:TUIC_REAL_NODE)) {
+            throw 'Missing TUIC_REAL_NODE secret.'
+          }
+          Write-Host "::add-mask::$env:TUIC_REAL_NODE"
+
+      - name: Verify packaged native library exists
+        shell: pwsh
+        run: |
+          $triplet = '${{ matrix.native_triplet }}'
+          $dir = Join-Path $PWD "resources/native/$triplet"
+          if (-not (Test-Path $dir)) {
+            throw "Missing native directory: $dir"
+          }
+          Get-ChildItem $dir | ForEach-Object { Write-Host "Native asset: $($_.FullName)" }
+
+      - name: Doctor
+        shell: pwsh
+        run: |
+          & php ./bin/tuic-client doctor "--node=$env:TUIC_REAL_NODE"
+
+      - name: Start TUIC proxy and probe
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $runtimeDir = Join-Path $PWD 'runtime-e2e'
+          New-Item -ItemType Directory -Force -Path $runtimeDir | Out-Null
+          $stdout = Join-Path $runtimeDir 'tuic-stdout.log'
+          $stderr = Join-Path $runtimeDir 'tuic-stderr.log'
+          $proc = Start-Process -FilePath 'php' -WorkingDirectory $PWD -ArgumentList @(
+            './bin/tuic-client',
+            'run',
+            "--node=$env:TUIC_REAL_NODE",
+            "--listen=$env:TUIC_LISTEN"
+          ) -RedirectStandardOutput $stdout -RedirectStandardError $stderr -PassThru
+          try {
+            $deadline = (Get-Date).AddSeconds(20)
+            $hostName, $portText = $env:TUIC_LISTEN.Split(':')
+            $port = [int] $portText
+            $ready = $false
+            while ((Get-Date) -lt $deadline) {
+              Start-Sleep -Milliseconds 500
+              try {
+                $client = [System.Net.Sockets.TcpClient]::new()
+                $async = $client.BeginConnect($hostName, $port, $null, $null)
+                if ($async.AsyncWaitHandle.WaitOne(500)) {
+                  $client.EndConnect($async)
+                  $client.Dispose()
+                  $ready = $true
+                  break
+                }
+                $client.Dispose()
+              } catch {
+              }
+              if ($proc.HasExited) {
+                throw "TUIC process exited early with code $($proc.ExitCode)"
+              }
+            }
+            if (-not $ready) {
+              throw 'Timed out waiting for the local SOCKS5 listener.'
+            }
+
+            $probe = & php ./scripts/proxy-probe.php $env:TUIC_TEST_URL $env:TUIC_LISTEN
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Proxy probe failed.'
+            }
+            Write-Host "Probe response: $probe"
+            if ($probe -notmatch '"ip"\s*:') {
+              throw "Unexpected probe response: $probe"
+            }
+          } finally {
+            if (-not $proc.HasExited) {
+              Stop-Process -Id $proc.Id -Force
+            }
+            if (Test-Path $stdout) {
+              Write-Host '==== TUIC STDOUT ===='
+              Get-Content $stdout
+            }
+            if (Test-Path $stderr) {
+              Write-Host '==== TUIC STDERR ===='
+              Get-Content $stderr
+            }
+          }
