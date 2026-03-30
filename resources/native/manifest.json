@@ -1,6 +1,25 @@
 {
-    "quiche_version": null,
-    "generated_at": null,
-    "source_commit": null,
-    "libraries": []
+    "quiche_version": "0.26.1",
+    "generated_at": "2026-03-30T09:30:19Z",
+    "source_commit": "179560ae85c6b8db856dd9d8a9deebbf80f34f68",
+    "libraries": [
+        {
+            "triplet": "linux-x64",
+            "file": "libquiche.so",
+            "sha256": "a0a8eb0af0a890ba572bbc5752d3e55c75a83787539c26713f3eaae4144f0927",
+            "size": 26374544
+        },
+        {
+            "triplet": "macos-x64",
+            "file": "libquiche.dylib",
+            "sha256": "cc1026c08f532d06484839e20b531398c01fd33bf0a68db08773f7e3400e26e8",
+            "size": 2898120
+        },
+        {
+            "triplet": "windows-x64",
+            "file": "quiche.dll",
+            "sha256": "ba49a897960f97d4cb5eb098a5725609676daf9226bf7e3a8d49b8eaab50c69b",
+            "size": 3381760
+        }
+    ]
 }
