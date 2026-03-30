@@ -6,32 +6,44 @@ final class QuicheCdef
 {
     public static function definitions(): string
     {
-        return <<<'CDEF'
-typedef unsigned char bool;
-typedef unsigned char uint8_t;
-typedef signed char int8_t;
-typedef unsigned short uint16_t;
-typedef short int16_t;
-typedef unsigned int uint32_t;
-typedef int int32_t;
-typedef unsigned long long uint64_t;
-typedef long long int64_t;
-typedef unsigned long long size_t;
-typedef long long ssize_t;
-typedef unsigned int socklen_t;
-typedef unsigned short sa_family_t;
-
+        $usesBsd = QuicheBindings::usesBsdSockaddrLayout();
+        $saFamily = $usesBsd
+            ? 'typedef unsigned char sa_family_t;'
+            : 'typedef unsigned short sa_family_t;';
+        $sockaddrDefinitions = $usesBsd ? <<<'CDEF'
 struct sockaddr {
+    uint8_t sa_len;
     sa_family_t sa_family;
     char sa_data[14];
 };
 
-struct in_addr {
-    uint32_t s_addr;
+struct sockaddr_in {
+    uint8_t sin_len;
+    sa_family_t sin_family;
+    uint16_t sin_port;
+    struct in_addr sin_addr;
+    char sin_zero[8];
 };
 
-struct in6_addr {
-    uint8_t s6_addr[16];
+struct sockaddr_in6 {
+    uint8_t sin6_len;
+    sa_family_t sin6_family;
+    uint16_t sin6_port;
+    uint32_t sin6_flowinfo;
+    struct in6_addr sin6_addr;
+    uint32_t sin6_scope_id;
+};
+
+struct sockaddr_storage {
+    uint8_t ss_len;
+    sa_family_t ss_family;
+    char __ss_padding[126];
+};
+CDEF
+            : <<<'CDEF'
+struct sockaddr {
+    sa_family_t sa_family;
+    char sa_data[14];
 };
 
 struct sockaddr_in {
@@ -53,6 +65,32 @@ struct sockaddr_storage {
     sa_family_t ss_family;
     char __ss_padding[126];
 };
+CDEF;
+
+        return <<<CDEF
+typedef unsigned char bool;
+typedef unsigned char uint8_t;
+typedef signed char int8_t;
+typedef unsigned short uint16_t;
+typedef short int16_t;
+typedef unsigned int uint32_t;
+typedef int int32_t;
+typedef unsigned long long uint64_t;
+typedef long long int64_t;
+typedef unsigned long long size_t;
+typedef long long ssize_t;
+typedef unsigned int socklen_t;
+{$saFamily}
+
+struct in_addr {
+    uint32_t s_addr;
+};
+
+struct in6_addr {
+    uint8_t s6_addr[16];
+};
+
+{$sockaddrDefinitions}
 
 struct timespec {
     int64_t tv_sec;

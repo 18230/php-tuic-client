@@ -40,4 +40,9 @@ final class QuicheBindings
     {
         return \defined('AF_INET6') ? AF_INET6 : 10;
     }
+
+    public static function usesBsdSockaddrLayout(): bool
+    {
+        return \PHP_OS_FAMILY === 'Darwin';
+    }
 }

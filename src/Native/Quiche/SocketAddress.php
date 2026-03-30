@@ -27,6 +27,9 @@ final class SocketAddress
         $ffi = $bindings->ffi();
         if (strlen($packed) === 4) {
             $address = $ffi->new('struct sockaddr_in');
+            if (QuicheBindings::usesBsdSockaddrLayout()) {
+                $address->sin_len = \FFI::sizeof($address);
+            }
             $address->sin_family = QuicheBindings::afInet();
             $address->sin_port = self::hostToNetworkShort($port);
             $address->sin_addr->s_addr = unpack('Nip', $packed)['ip'];
@@ -36,6 +39,9 @@ final class SocketAddress
 
         if (strlen($packed) === 16) {
             $address = $ffi->new('struct sockaddr_in6');
+            if (QuicheBindings::usesBsdSockaddrLayout()) {
+                $address->sin6_len = \FFI::sizeof($address);
+            }
             $address->sin6_family = QuicheBindings::afInet6();
             $address->sin6_port = self::hostToNetworkShort($port);
 
