@@ -2,98 +2,79 @@
 
 ## 推荐拓扑
 
-把 `php-tuic-client` 作为独立本地代理进程运行，然后让应用复用本地代理地址。
+把 `php-tuic-client` 当成一个独立的本地 SOCKS5 进程来运行。
 
 ```text
-应用 / curl / 浏览器 -> 127.0.0.1:8080 或 127.0.0.1:1080 -> php-tuic-client -> TUIC 节点 -> 目标站点
+应用 / curl / 抓取程序 -> 127.0.0.1:1080 -> php-tuic-client -> TUIC 节点 -> 目标站点
 ```
 
-## 平台现状
+## 平台状态
 
-- Linux：当前推荐运行平台
-- macOS：当前推荐运行平台
-- Windows：包的脚手架、配置解析、测试和干跑可用，但上游 `amphp/quic` 当前没有随包提供 Windows 的 `libquiche` 二进制，所以运行时还不可用
+- Linux：推荐生产平台
+- macOS：适合开发机或轻量长驻运行
+- Windows：支持，官方 release 标签会内置 x64 版 `quiche.dll`
 
-## 启动脚本
+## 运行时要求
 
-包内提供了三套跨平台脚本：
+- PHP `8.2.4+`
+- `ext-ffi`
+- `ext-json`
+- `ext-openssl`
+- `ext-sockets`
+- `libquiche` / `quiche.dll`
 
-- Windows PowerShell: [scripts/start-tuic-client.ps1](../../scripts/start-tuic-client.ps1)
-- Windows CMD: [scripts/start-tuic-client.bat](../../scripts/start-tuic-client.bat)
-- Linux/macOS Shell: [scripts/start-tuic-client.sh](../../scripts/start-tuic-client.sh)
+官方 tag 版本会把下面这些预编译产物直接带进仓库内容，因此也会进入 Composer 的 dist 包：
 
-支持的环境变量：
+- `resources/native/windows-x64/quiche.dll`
+- `resources/native/linux-x64/libquiche.so`
+- `resources/native/macos-x64/libquiche.dylib`
 
-- `PHP_BIN`
-- `TUIC_CONFIG`
-- `TUIC_NODE`
-- `TUIC_NODE_NAME`
-- `TUIC_HTTP_LISTEN`
-- `TUIC_SOCKS_LISTEN`
-- `TUIC_NO_HTTP`
-- `TUIC_NO_SOCKS`
+如果你的目标机器不在这些 x64 triplet 里，就需要自行构建，并放到 `resources/native/<platform>-<arch>/`，或者通过 `QUICHE_LIB` 指到绝对路径。
 
-模板：
+## 启动方式
 
-- [examples/tuic-client.env.example](../../examples/tuic-client.env.example)
-
-## Linux / macOS
+Shell：
 
 ```bash
 export PHP_BIN=/usr/bin/php
 export TUIC_CONFIG=/opt/php-tuic-client/config/tuic.yaml
-export TUIC_HTTP_LISTEN=127.0.0.1:8080
 export TUIC_SOCKS_LISTEN=127.0.0.1:1080
+export QUICHE_LIB=/opt/php-tuic-client/resources/native/linux-x64/libquiche.so
 
 ./scripts/start-tuic-client.sh
 ```
 
-模板文件：
-
-- systemd: [resources/systemd/php-tuic-client.service](../../resources/systemd/php-tuic-client.service)
-- Supervisor: [resources/supervisor/php-tuic-client.conf](../../resources/supervisor/php-tuic-client.conf)
-- launchd: [resources/launchd/io.github.18230.php-tuic-client.plist](../../resources/launchd/io.github.18230.php-tuic-client.plist)
-
-## Windows
+PowerShell：
 
 ```powershell
-$env:PHP_BIN = 'E:\phpEnv\php\php-8.2\php.exe'
+$env:PHP_BIN = 'E:\phpEnv\php\php-8.4\php.exe'
 $env:TUIC_CONFIG = 'E:\proxy\tuic.yaml'
-$env:TUIC_HTTP_LISTEN = '127.0.0.1:8080'
 $env:TUIC_SOCKS_LISTEN = '127.0.0.1:1080'
+$env:QUICHE_LIB = 'E:\proxy\resources\native\windows-x64\quiche.dll'
 
 .\scripts\start-tuic-client.ps1
 ```
 
-当前只有在你自己提供可用的 Windows `libquiche` 构建时，这条路径才可能真正跑起来；默认随包依赖并不包含它。
+## 原生库构建
 
-## FFI 要求
+只有在使用 `dev-main`、本地开发，或者目标架构不在官方内置范围时，才需要手动构建。正式 tag 版本已经自带 x64 预编译库。
 
-长驻代理进程所使用的那套 PHP 必须启用 `ext-ffi`。
+Windows：
 
-常见 `php.ini` 写法：
-
-```ini
-extension=ffi
+```powershell
+.\scripts\build-quiche.ps1
 ```
 
-## TLS / CA 说明
+Linux / macOS：
 
-有两层证书：
-
-1. TUIC 节点证书
-   由节点配置里的 `skip-cert-verify` 控制
-2. 目标 HTTPS 站点证书
-   由 PHP cURL 的 CA 配置控制
-
-CA 模板：
-
-- [resources/php/cacert.ini.example](../../resources/php/cacert.ini.example)
+```bash
+./scripts/build-quiche.sh
+```
 
 ## 运维建议
 
-- 非必要不要把监听地址暴露到回环地址之外
-- 部署时先执行 `php bin/tuic-client doctor --config=/path/to/tuic.yaml`
-- 长时间运行优先 Linux
-- 用进程守护工具管理重启和日志
-- 如果配置了 `skip-cert-verify: true`，要明确记录这个安全取舍
+- 监听地址优先只放在回环地址。
+- 部署时先跑 `php bin/tuic-client doctor ...`。
+- `skip-cert-verify: true` 要当成明确的安全取舍。
+- 建议配合 `systemd`、`supervisord`、`launchd` 等守护进程使用。
+- 正式 tag 已经把 x64 原生库跟着 Composer 包一起发了。如果你是自定义架构，请保持同样的 `resources/native/` 目录结构一起发布。

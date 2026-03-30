@@ -39,3 +39,5 @@ composer validate --strict
 composer test
 php bin/tuic-client doctor --config=examples/node.example.yaml
 ```
+
+另外要确认最新一次 `Native Binaries` 工作流已经把 `resources/native/` 刷新提交回仓库。因为 Packagist 下载的是 tag 对应的仓库快照，所以这些原生库必须在打 tag 之前就已经进入 Git。

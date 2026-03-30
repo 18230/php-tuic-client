@@ -3,73 +3,60 @@
 namespace PhpTuic\Runtime;
 
 use PhpTuic\Config\NodeConfig;
-use PhpTuic\Proxy\HttpProxyServer;
 use PhpTuic\Proxy\Socks5ProxyServer;
-use PhpTuic\Support\Platform;
 use PhpTuic\Tuic\TuicClient;
-use function Amp\trapSignal;
+use React\EventLoop\Loop;
+use React\EventLoop\LoopInterface;
 
 final class ProxyRunner
 {
+    private readonly LoopInterface $loop;
+
     public function __construct(
         private readonly NodeConfig $node,
-        private readonly string $httpListen,
         private readonly string $socksListen,
-        private readonly bool $enableHttp = true,
-        private readonly bool $enableSocks = true,
+        private readonly ?string $quicheLibrary = null,
+        ?LoopInterface $loop = null,
     ) {
+        $this->loop = $loop ?? Loop::get();
     }
 
     public function run(): void
     {
-        $tuic = new TuicClient($this->node);
-        $httpServer = null;
-        $socksServer = null;
+        $tuic = new TuicClient(
+            node: $this->node,
+            loop: $this->loop,
+            quicheLibrary: $this->quicheLibrary,
+        );
+        $socks = new Socks5ProxyServer(
+            tuicClient: $tuic,
+            listenAddress: $this->socksListen,
+            loop: $this->loop,
+        );
 
         try {
-            if ($this->enableHttp) {
-                $httpServer = new HttpProxyServer($tuic, $this->httpListen);
-                $httpServer->start();
-                fwrite(STDERR, "HTTP proxy listening on {$httpServer->getAddress()}\n");
-            }
-
-            if ($this->enableSocks) {
-                $socksServer = new Socks5ProxyServer($tuic, $this->socksListen);
-                $socksServer->start();
-                fwrite(STDERR, "SOCKS5 proxy listening on {$socksServer->getAddress()}\n");
-            }
-
-            if ($httpServer === null && $socksServer === null) {
-                throw new \RuntimeException('Both proxy listeners are disabled.');
-            }
-
-            fwrite(STDERR, "Press Ctrl+C to stop.\n");
-            self::waitForShutdown();
+            $socks->start();
+            fwrite(STDERR, "SOCKS5 proxy listening on {$socks->getAddress()}\n");
+            $this->registerSignals($socks, $tuic);
+            $this->loop->run();
         } finally {
-            $httpServer?->stop();
-            $socksServer?->stop();
+            $socks->stop();
             $tuic->close();
         }
     }
 
-    public static function waitForShutdown(): void
+    private function registerSignals(Socks5ProxyServer $socks, TuicClient $tuic): void
     {
-        $signals = [];
-        if (\defined('SIGINT')) {
-            $signals[] = SIGINT;
-        }
-        if (\defined('SIGTERM')) {
-            $signals[] = SIGTERM;
-        }
-
-        if (Platform::canTrapSignals($signals)) {
-            trapSignal($signals);
-
+        if (PHP_OS_FAMILY === 'Windows' || !extension_loaded('pcntl')) {
             return;
         }
 
-        while (true) {
-            usleep(250_000);
+        foreach ([SIGINT, SIGTERM] as $signal) {
+            $this->loop->addSignal($signal, function () use ($socks, $tuic): void {
+                $socks->stop();
+                $tuic->close();
+                $this->loop->stop();
+            });
         }
     }
 }

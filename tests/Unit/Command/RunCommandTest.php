@@ -21,6 +21,6 @@ final class RunCommandTest extends TestCase
 
         self::assertSame(0, $tester->getStatusCode());
         self::assertStringContainsString('tuic-client dry run', $tester->getDisplay());
-        self::assertStringContainsString('HTTP listener: 127.0.0.1:8080', $tester->getDisplay());
+        self::assertStringContainsString('SOCKS5 listener: 127.0.0.1:1080', $tester->getDisplay());
     }
 }

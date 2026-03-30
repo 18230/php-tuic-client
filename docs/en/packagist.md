@@ -39,3 +39,5 @@ composer validate --strict
 composer test
 php bin/tuic-client doctor --config=examples/node.example.yaml
 ```
+
+Also make sure the latest `Native Binaries` workflow has already committed refreshed files under `resources/native/`. Packagist downloads the tagged repository snapshot, so those native files must exist in Git before you tag the release.

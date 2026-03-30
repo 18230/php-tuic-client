@@ -2,8 +2,8 @@ param(
     [string] $Config = '',
     [string] $Node = '',
     [string] $NodeName = '',
-    [string] $HttpListen = '',
-    [string] $SocksListen = ''
+    [string] $SocksListen = '',
+    [string] $QuicheLib = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -23,12 +23,12 @@ if (-not $NodeName) {
     $NodeName = $env:TUIC_NODE_NAME
 }
 
-if (-not $HttpListen) {
-    $HttpListen = if ($env:TUIC_HTTP_LISTEN) { $env:TUIC_HTTP_LISTEN } else { '127.0.0.1:8080' }
-}
-
 if (-not $SocksListen) {
     $SocksListen = if ($env:TUIC_SOCKS_LISTEN) { $env:TUIC_SOCKS_LISTEN } else { '127.0.0.1:1080' }
+}
+
+if (-not $QuicheLib) {
+    $QuicheLib = $env:QUICHE_LIB
 }
 
 if ([string]::IsNullOrWhiteSpace($Config) -and [string]::IsNullOrWhiteSpace($Node)) {
@@ -37,8 +37,7 @@ if ([string]::IsNullOrWhiteSpace($Config) -and [string]::IsNullOrWhiteSpace($Nod
 
 $arguments = @(
     (Join-Path $appRoot 'bin\tuic-client')
-    "--http-listen=$HttpListen"
-    "--socks-listen=$SocksListen"
+    "--listen=$SocksListen"
 )
 
 if (-not [string]::IsNullOrWhiteSpace($Config)) {
@@ -53,12 +52,8 @@ if (-not [string]::IsNullOrWhiteSpace($NodeName)) {
     $arguments += "--node-name=$NodeName"
 }
 
-if ($env:TUIC_NO_HTTP -eq '1') {
-    $arguments += '--no-http'
-}
-
-if ($env:TUIC_NO_SOCKS -eq '1') {
-    $arguments += '--no-socks'
+if (-not [string]::IsNullOrWhiteSpace($QuicheLib)) {
+    $arguments += "--quiche-lib=$QuicheLib"
 }
 
 & $phpBin @arguments

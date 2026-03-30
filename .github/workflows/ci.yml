@@ -45,10 +45,6 @@ jobs:
       - name: Run PHPUnit
         run: composer test
 
-      - name: Run doctor command
-        if: runner.os != 'Windows'
-        run: php bin/tuic-client doctor --config=examples/node.example.yaml
-
       - name: Run dry-run command
         run: php bin/tuic-client --config=examples/node.example.yaml --dry-run
 
@@ -63,10 +59,6 @@ jobs:
           while IFS= read -r -d '' file; do
             php -l "$file"
           done < <(find src tests config examples stubs -type f -name '*.php' -print0)
-          php -l bin/tuic-proxy-server.php
-          php -l bin/tuic-request.php
-          php -l bin/tuic-http-request.php
-          php -l bin/tuic-tcp-request.php
 
   ubuntu-versions:
     name: Ubuntu / PHP ${{ matrix.php }}
@@ -97,8 +89,8 @@ jobs:
       - name: Run PHPUnit
         run: composer test
 
-  linux-startup-smoke:
-    name: Linux startup smoke test
+  linux-runtime-smoke:
+    name: Linux runtime smoke test
     runs-on: ubuntu-latest
 
     steps:
@@ -116,6 +108,23 @@ jobs:
       - name: Install dependencies
         run: composer install --no-interaction --no-progress --prefer-dist
 
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build libquiche
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x scripts/build-quiche.sh
+          ./scripts/build-quiche.sh
+
+      - name: Run doctor command
+        shell: bash
+        run: |
+          set -euo pipefail
+          export QUICHE_LIB="$PWD/resources/native/linux-x64/libquiche.so"
+          php bin/tuic-client doctor --config=examples/node.example.yaml --quiche-lib="$QUICHE_LIB"
+
       - name: Run shell startup smoke test
         shell: bash
         run: |
@@ -124,8 +133,8 @@ jobs:
 
           export PHP_BIN="$(command -v php)"
           export TUIC_CONFIG="examples/node.example.yaml"
-          export TUIC_HTTP_LISTEN="127.0.0.1:18080"
           export TUIC_SOCKS_LISTEN="127.0.0.1:11080"
+          export QUICHE_LIB="$PWD/resources/native/linux-x64/libquiche.so"
 
           cleanup() {
             if [ -n "${SERVER_PID:-}" ]; then
@@ -139,13 +148,12 @@ jobs:
           SERVER_PID=$!
 
           for _ in $(seq 1 30); do
-            if php -r '$c=@fsockopen("127.0.0.1", 18080, $errno, $errstr, 0.5); if ($c) { fclose($c); exit(0); } exit(1);'; then
+            if php -r '$c=@fsockopen("127.0.0.1", 11080, $errno, $errstr, 0.5); if ($c) { fclose($c); exit(0); } exit(1);'; then
               break
             fi
             sleep 0.5
           done
 
-          php -r '$c=@fsockopen("127.0.0.1", 18080, $errno, $errstr, 0.5); if (!$c) { fwrite(STDERR, "HTTP proxy port did not start\n"); exit(1); } fclose($c);'
           php -r '$c=@fsockopen("127.0.0.1", 11080, $errno, $errstr, 0.5); if (!$c) { fwrite(STDERR, "SOCKS5 proxy port did not start\n"); exit(1); } fclose($c);'
 
       - name: Print smoke logs on failure
