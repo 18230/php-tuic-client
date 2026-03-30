@@ -32,7 +32,7 @@ jobs:
             lib_name: libquiche.so
             output_dir: resources/native/linux-x64
             shell: bash
-          - os: macos-13
+          - os: macos-15-intel
             triplet: macos-x64
             lib_name: libquiche.dylib
             output_dir: resources/native/macos-x64

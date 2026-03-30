@@ -30,20 +30,15 @@ esac
 
 TRIPLET="${PLATFORM}-${ARCHITECTURE}"
 OUTPUT_DIR="${OUTPUT_DIR:-$ROOT_DIR/resources/native/$TRIPLET}"
-ARCHIVE_PATH="${TMPDIR:-/tmp}/quiche-${VERSION}.tar.gz"
-EXTRACT_DIR="${TMPDIR:-/tmp}/quiche-${VERSION}"
 
 command -v cargo >/dev/null 2>&1 || { echo "cargo not found in PATH" >&2; exit 1; }
 command -v cmake >/dev/null 2>&1 || { echo "cmake not found in PATH" >&2; exit 1; }
-command -v curl >/dev/null 2>&1 || { echo "curl not found in PATH" >&2; exit 1; }
-command -v tar >/dev/null 2>&1 || { echo "tar not found in PATH" >&2; exit 1; }
+command -v git >/dev/null 2>&1 || { echo "git not found in PATH" >&2; exit 1; }
 
-rm -rf "$WORK_DIR" "$EXTRACT_DIR"
+rm -rf "$WORK_DIR"
 mkdir -p "$OUTPUT_DIR"
 
-curl -L "https://github.com/cloudflare/quiche/archive/refs/tags/${VERSION}.tar.gz" -o "$ARCHIVE_PATH"
-tar -xzf "$ARCHIVE_PATH" -C "${TMPDIR:-/tmp}"
-mv "$EXTRACT_DIR" "$WORK_DIR"
+git clone --recursive --depth 1 --branch "$VERSION" https://github.com/cloudflare/quiche.git "$WORK_DIR"
 
 pushd "$WORK_DIR" >/dev/null
 cargo build -p quiche --release --features ffi

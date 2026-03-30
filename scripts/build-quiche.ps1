@@ -24,9 +24,6 @@ if ($OutputDir -eq "") {
 
 $WorkDir = [System.IO.Path]::GetFullPath($WorkDir)
 $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
-$ArchivePath = Join-Path ([System.IO.Path]::GetTempPath()) "quiche-$Version.zip"
-$ExtractDir = Join-Path ([System.IO.Path]::GetTempPath()) "quiche-$Version"
-
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
@@ -41,17 +38,15 @@ if (-not (Get-Command nasm -ErrorAction SilentlyContinue)) {
     throw "nasm was not found in PATH. It is required by quiche on Windows."
 }
 
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw "git was not found in PATH."
+}
+
 if (Test-Path $WorkDir) {
     Remove-Item -Recurse -Force $WorkDir
 }
 
-if (Test-Path $ExtractDir) {
-    Remove-Item -Recurse -Force $ExtractDir
-}
-
-Invoke-WebRequest -Uri "https://github.com/cloudflare/quiche/archive/refs/tags/$Version.zip" -OutFile $ArchivePath
-Expand-Archive -Path $ArchivePath -DestinationPath ([System.IO.Path]::GetTempPath()) -Force
-Move-Item -LiteralPath $ExtractDir -Destination $WorkDir
+git clone --recursive --depth 1 --branch $Version https://github.com/cloudflare/quiche.git $WorkDir
 
 Push-Location $WorkDir
 try {
