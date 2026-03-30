@@ -130,8 +130,33 @@ curl_close($ch);
 - `--config`
 - `--node-name`
 - `--listen`
+- `--allow-ip`
+- `--max-connections`
+- `--connect-timeout`
+- `--idle-timeout`
+- `--handshake-timeout`
+- `--status-file`
+- `--status-interval`
+- `--log-file`
+- `--pid-file`
 - `--quiche-lib`
 - `--dry-run`
+
+生产风格示例：
+
+```bash
+php bin/tuic-client \
+  --config=/opt/php-tuic-client/config/tuic.yaml \
+  --listen=127.0.0.1:1080 \
+  --allow-ip=127.0.0.1 \
+  --max-connections=2048 \
+  --connect-timeout=12 \
+  --idle-timeout=600 \
+  --handshake-timeout=20 \
+  --status-file=/opt/php-tuic-client/runtime/status.json \
+  --log-file=/opt/php-tuic-client/runtime/proxy.log \
+  --pid-file=/opt/php-tuic-client/runtime/proxy.pid
+```
 
 ## 节点配置示例
 
@@ -157,6 +182,7 @@ proxies:
 - 监听地址优先保持在回环地址。
 - `doctor` 要用和长驻进程完全一致的 PHP 二进制去跑。
 - 官方 release 标签已经把 x64 原生库带进 Composer 包。
+- 生产参数尽量保持少而明确：`allow-ip`、`max-connections`、`connect-timeout`、`idle-timeout`、`handshake-timeout`、`status-file`、`log-file`、`pid-file`。
 - 如果目标机器是其他架构，部署时请把自建 `libquiche` 跟着同一份产物一起发布，并放到匹配的 triplet 目录，或者设置 `QUICHE_LIB`。
 - 长时间生产运行优先 Linux。
 

@@ -130,8 +130,33 @@ Main options:
 - `--config`
 - `--node-name`
 - `--listen`
+- `--allow-ip`
+- `--max-connections`
+- `--connect-timeout`
+- `--idle-timeout`
+- `--handshake-timeout`
+- `--status-file`
+- `--status-interval`
+- `--log-file`
+- `--pid-file`
 - `--quiche-lib`
 - `--dry-run`
+
+Production-style example:
+
+```bash
+php bin/tuic-client \
+  --config=/opt/php-tuic-client/config/tuic.yaml \
+  --listen=127.0.0.1:1080 \
+  --allow-ip=127.0.0.1 \
+  --max-connections=2048 \
+  --connect-timeout=12 \
+  --idle-timeout=600 \
+  --handshake-timeout=20 \
+  --status-file=/opt/php-tuic-client/runtime/status.json \
+  --log-file=/opt/php-tuic-client/runtime/proxy.log \
+  --pid-file=/opt/php-tuic-client/runtime/proxy.pid
+```
 
 ## Node Example
 
@@ -157,6 +182,7 @@ proxies:
 - Keep the SOCKS5 listener on loopback unless you truly need LAN access.
 - Run `doctor` against the exact PHP binary that will host the long-running process.
 - Official release tags already ship bundled x64 native libraries inside the Composer package.
+- Production flags stay intentionally small and explicit: `allow-ip`, `max-connections`, `connect-timeout`, `idle-timeout`, `handshake-timeout`, `status-file`, `log-file`, and `pid-file`.
 - If you deploy on another architecture, ship your own `libquiche` with the same artifact and either place it under the matching triplet directory or set `QUICHE_LIB`.
 - Prefer Linux for long-running production workloads.
 

@@ -5,6 +5,7 @@ namespace PhpTuic\Command;
 use PhpTuic\Config\NodeInputResolver;
 use PhpTuic\Native\Quiche\QuicheBindings;
 use PhpTuic\Native\Quiche\QuicheLibraryResolver;
+use PhpTuic\Runtime\RunOptions;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputInterface;
@@ -22,6 +23,15 @@ final class DoctorCommand extends Command
             ->addOption('config', null, InputOption::VALUE_REQUIRED, 'Path to a YAML or JSON file that contains the TUIC node config.')
             ->addOption('node-name', null, InputOption::VALUE_REQUIRED, 'Optional node name when the config contains multiple proxies.')
             ->addOption('listen', null, InputOption::VALUE_REQUIRED, 'Local SOCKS5 listen address.', '127.0.0.1:1080')
+            ->addOption('allow-ip', null, InputOption::VALUE_REQUIRED | InputOption::VALUE_IS_ARRAY, 'Allow a local client IP or CIDR. Repeat the option to add multiple rules.')
+            ->addOption('max-connections', null, InputOption::VALUE_REQUIRED, 'Maximum number of concurrent local client connections.', '1024')
+            ->addOption('connect-timeout', null, InputOption::VALUE_REQUIRED, 'Timeout in seconds for opening the TUIC UDP socket.', '10')
+            ->addOption('idle-timeout', null, InputOption::VALUE_REQUIRED, 'QUIC idle timeout in seconds.', '300')
+            ->addOption('handshake-timeout', null, InputOption::VALUE_REQUIRED, 'Maximum time in seconds to finish QUIC + TUIC authentication.', '15')
+            ->addOption('status-file', null, InputOption::VALUE_REQUIRED, 'Optional JSON status file that is refreshed while the proxy is running.')
+            ->addOption('status-interval', null, InputOption::VALUE_REQUIRED, 'Status file refresh interval in seconds.', '10')
+            ->addOption('log-file', null, InputOption::VALUE_REQUIRED, 'Optional runtime log file. Defaults to STDERR when omitted.')
+            ->addOption('pid-file', null, InputOption::VALUE_REQUIRED, 'Optional PID file for supervisor/systemd integration.')
             ->addOption('quiche-lib', null, InputOption::VALUE_REQUIRED, 'Absolute path or library name of the libquiche shared library.');
     }
 
@@ -49,8 +59,20 @@ final class DoctorCommand extends Command
             $failures++;
         }
 
-        $listen = (string) $input->getOption('listen');
-        $io->writeln(sprintf('<info>OK</info> SOCKS5 listener %s', $listen));
+        try {
+            $options = RunOptions::fromInput($input, $output->isVerbose());
+            $io->writeln(sprintf('<info>OK</info> SOCKS5 listener %s', $options->listenAddress));
+            $io->writeln(sprintf('<info>OK</info> Max connections: %d', $options->maxConnections));
+            $io->writeln(sprintf('<info>OK</info> Connect timeout: %.1fs', $options->connectTimeout));
+            $io->writeln(sprintf('<info>OK</info> Idle timeout: %ds', $options->idleTimeoutSeconds));
+            $io->writeln(sprintf('<info>OK</info> Handshake timeout: %.1fs', $options->handshakeTimeout));
+            if ($options->allowIps !== []) {
+                $io->writeln(sprintf('<info>OK</info> Allow IPs: %s', implode(', ', $options->allowIps)));
+            }
+        } catch (\Throwable $throwable) {
+            $io->writeln(sprintf('<error>FAIL</error> %s', $throwable->getMessage()));
+            $failures++;
+        }
 
         try {
             $node = (new NodeInputResolver())->resolve(
@@ -76,6 +98,8 @@ final class DoctorCommand extends Command
 
             $bindings = new QuicheBindings($resolved);
             $io->writeln(sprintf('<info>OK</info> quiche version: %s', $bindings->version()));
+            $bindings->assertConfigCreation();
+            $io->writeln('<info>OK</info> quiche_config_new() smoke test passed');
         } catch (\Throwable $throwable) {
             $io->writeln(sprintf('<error>FAIL</error> %s', $throwable->getMessage()));
             $failures++;

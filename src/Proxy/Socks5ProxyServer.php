@@ -2,20 +2,28 @@
 
 namespace PhpTuic\Proxy;
 
+use PhpTuic\Runtime\IpAccessList;
+use PhpTuic\Runtime\RunOptions;
+use PhpTuic\Runtime\RuntimeLogger;
+use PhpTuic\Runtime\ServerStats;
 use PhpTuic\Tuic\TuicClient;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
+use React\EventLoop\TimerInterface;
 
 final class Socks5ProxyServer
 {
     /** @var resource|null */
     private $server = null;
+    private ?TimerInterface $sessionSweepTimer = null;
 
     /**
      * @var array<int, array{
      *     stream: resource,
      *     buffer: string,
-     *     stage: 'greeting'|'request'|'connecting'|'closed'
+     *     stage: 'greeting'|'request'|'connecting'|'closed',
+     *     remote_ip: ?string,
+     *     expires_at: float
      * }>
      */
     private array $sessions = [];
@@ -25,6 +33,10 @@ final class Socks5ProxyServer
     public function __construct(
         private readonly TuicClient $tuicClient,
         private readonly string $listenAddress,
+        private readonly IpAccessList $accessList,
+        private readonly ServerStats $stats,
+        private readonly RunOptions $options,
+        private readonly RuntimeLogger $logger,
         ?LoopInterface $loop = null,
     ) {
         $this->loop = $loop ?? Loop::get();
@@ -48,6 +60,9 @@ final class Socks5ProxyServer
         stream_set_blocking($server, false);
         $this->server = $server;
         $this->loop->addReadStream($server, fn () => $this->acceptClient());
+        $this->sessionSweepTimer = $this->loop->addPeriodicTimer(1.0, function (): void {
+            $this->closeExpiredSessions();
+        });
     }
 
     public function stop(): void
@@ -56,6 +71,11 @@ final class Socks5ProxyServer
             $this->loop->removeReadStream($this->server);
             fclose($this->server);
             $this->server = null;
+        }
+
+        if ($this->sessionSweepTimer !== null) {
+            $this->loop->cancelTimer($this->sessionSweepTimer);
+            $this->sessionSweepTimer = null;
         }
 
         foreach (array_keys($this->sessions) as $sessionId) {
@@ -81,13 +101,44 @@ final class Socks5ProxyServer
         }
 
         while (($client = @stream_socket_accept($this->server, 0)) !== false) {
+            $remoteAddress = stream_socket_get_name($client, true);
+            $remoteIp = $this->extractRemoteIp($remoteAddress === false ? null : $remoteAddress);
+
+            if (!$this->accessList->allows($remoteIp)) {
+                $this->stats->recordAccessDenied();
+                $this->logger->warning('Rejected local client outside allow list.', [
+                    'remote_address' => $remoteAddress,
+                ]);
+                fclose($client);
+
+                continue;
+            }
+
+            if ($this->stats->activeConnections() >= $this->options->maxConnections) {
+                $this->stats->recordConnectionLimitRejected();
+                $this->logger->warning('Rejected local client because the connection limit was reached.', [
+                    'remote_address' => $remoteAddress,
+                    'max_connections' => $this->options->maxConnections,
+                ]);
+                fclose($client);
+
+                continue;
+            }
+
             stream_set_blocking($client, false);
             $id = (int) $client;
             $this->sessions[$id] = [
                 'stream' => $client,
                 'buffer' => '',
                 'stage' => 'greeting',
+                'remote_ip' => $remoteIp,
+                'expires_at' => microtime(true) + $this->options->handshakeTimeout,
             ];
+            $this->stats->recordAcceptedConnection();
+            $this->logger->debug('Accepted local client.', [
+                'remote_address' => $remoteAddress,
+                'active_connections' => $this->stats->activeConnections(),
+            ]);
 
             $this->loop->addReadStream($client, fn () => $this->handleClient($id));
         }
@@ -115,6 +166,7 @@ final class Socks5ProxyServer
             return;
         }
 
+        $this->sessions[$sessionId]['expires_at'] = microtime(true) + $this->options->handshakeTimeout;
         $this->sessions[$sessionId]['buffer'] .= $chunk;
 
         if ($this->sessions[$sessionId]['stage'] === 'greeting') {
@@ -140,6 +192,9 @@ final class Socks5ProxyServer
         }
 
         if ($version !== 0x05) {
+            $this->logger->warning('Rejected client with invalid SOCKS version.', [
+                'remote_ip' => $this->sessions[$sessionId]['remote_ip'],
+            ]);
             $this->closeSession($sessionId);
 
             return;
@@ -182,7 +237,14 @@ final class Socks5ProxyServer
             return;
         }
 
-        $parsed = $this->parseAddress($buffer, $type);
+        try {
+            $parsed = $this->parseAddress($buffer, $type);
+        } catch (\Throwable) {
+            $this->replyAndClose($sessionId, 0x08);
+
+            return;
+        }
+
         if ($parsed === null) {
             return;
         }
@@ -209,7 +271,9 @@ final class Socks5ProxyServer
                     return;
                 }
 
-                fwrite(STDERR, "[socks5] {$throwable->getMessage()}\n");
+                $this->logger->warning('SOCKS relay failed after the handshake completed.', [
+                    'message' => $throwable->getMessage(),
+                ]);
             },
         );
     }
@@ -300,7 +364,44 @@ final class Socks5ProxyServer
         $stream = $this->sessions[$sessionId]['stream'];
         $this->loop->removeReadStream($stream);
         $this->loop->removeWriteStream($stream);
-        fclose($stream);
+        if (is_resource($stream)) {
+            fclose($stream);
+        }
         unset($this->sessions[$sessionId]);
+        $this->stats->recordConnectionClosed();
+    }
+
+    private function closeExpiredSessions(): void
+    {
+        $now = microtime(true);
+        foreach (array_keys($this->sessions) as $sessionId) {
+            if (($this->sessions[$sessionId]['expires_at'] ?? 0.0) > $now) {
+                continue;
+            }
+
+            $this->stats->recordHandshakeTimeout();
+            $this->logger->warning('Closed local client because the SOCKS handshake timed out.', [
+                'remote_ip' => $this->sessions[$sessionId]['remote_ip'],
+            ]);
+            $this->replyAndClose($sessionId, 0x01);
+        }
+    }
+
+    private function extractRemoteIp(?string $remoteAddress): ?string
+    {
+        if ($remoteAddress === null || $remoteAddress === '') {
+            return null;
+        }
+
+        if (preg_match('/^\[(.+)\]:(\d+)$/', $remoteAddress, $matches) === 1) {
+            return $matches[1];
+        }
+
+        $position = strrpos($remoteAddress, ':');
+        if ($position === false) {
+            return $remoteAddress;
+        }
+
+        return substr($remoteAddress, 0, $position);
     }
 }

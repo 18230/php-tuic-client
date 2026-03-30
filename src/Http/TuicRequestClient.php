@@ -2,17 +2,13 @@
 
 namespace PhpTuic\Http;
 
-use PhpTuic\Config\NodeLoader;
 use PhpTuic\Proxy\ManagedTuicProxy;
-use PhpTuic\Tuic\TuicClient;
 
 // 面向业务代码的统一入口。
-// http 直接走原生 TUIC，请求 https 时再借助本地代理 + cURL。
+// 当前统一复用本地 SOCKS5 + cURL 这条已验证的链路，避免依赖未完成的直连 helper。
 final class TuicRequestClient
 {
     private readonly ManagedTuicProxy $proxy;
-    private readonly TuicClient $tuicClient;
-    private readonly TuicHttpClient $directHttpClient;
     private ?TuicCurlClient $proxiedHttpClient = null;
 
     public function __construct(
@@ -20,7 +16,7 @@ final class TuicRequestClient
         ?string $nodeName = null,
         ?int $httpPort = null,
         ?int $socksPort = null,
-        private readonly string $proxyMode = 'http',
+        private readonly string $proxyMode = 'socks5h',
         ?string $phpBinary = null,
         float $startupTimeout = 10.0,
     ) {
@@ -32,10 +28,6 @@ final class TuicRequestClient
             startupTimeout: $startupTimeout,
             phpBinary: $phpBinary,
         );
-
-        $node = NodeLoader::fromFile($configPath, $nodeName);
-        $this->tuicClient = new TuicClient($node);
-        $this->directHttpClient = new TuicHttpClient($this->tuicClient);
     }
 
     /**
@@ -111,16 +103,10 @@ final class TuicRequestClient
     {
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
 
-        // 纯 http 可以直接在 TUIC 隧道里拼 HTTP 报文，链路更短。
-        if ($scheme === 'http') {
-            return $this->directHttpClient->request($method, $url, $this->normalizeDirectOptions($options));
-        }
-
-        if ($scheme !== 'https') {
+        if (!in_array($scheme, ['http', 'https'], true)) {
             throw new \RuntimeException("Unsupported URL scheme: {$url}");
         }
 
-        // https 交给本地代理层处理，这样可以复用 cURL 的 TLS 能力。
         return $this->client()->request($method, $url, $options);
     }
 
@@ -132,15 +118,12 @@ final class TuicRequestClient
     public function stop(): void
     {
         $this->proxy->stop();
-        $this->tuicClient->close();
         $this->proxiedHttpClient = null;
     }
 
     public function getHttpProxyUrl(): string
     {
-        $this->start();
-
-        return $this->proxy->getHttpProxyUrl();
+        throw new \RuntimeException('HTTP proxy mode is not available in the current quiche runtime. Use getSocksProxyUrl().');
     }
 
     public function getSocksProxyUrl(): string
@@ -163,49 +146,14 @@ final class TuicRequestClient
             return $this->proxiedHttpClient;
         }
 
-        // 这里决定本地请求到底走 HTTP 代理还是 SOCKS5 代理。
         $proxyType = match (strtolower($this->proxyMode)) {
-            'http' => CURLPROXY_HTTP,
             'socks5', 'socks5h' => CURLPROXY_SOCKS5_HOSTNAME,
+            'http' => CURLPROXY_SOCKS5_HOSTNAME,
             default => throw new \RuntimeException("Unsupported proxy mode: {$this->proxyMode}"),
         };
 
-        $proxyAddress = $proxyType === CURLPROXY_HTTP
-            ? $this->proxy->getHttpProxyAddress()
-            : $this->proxy->getSocksProxyAddress();
+        $proxyAddress = $this->proxy->getSocksProxyAddress();
 
         return $this->proxiedHttpClient = new TuicCurlClient($proxyAddress, $proxyType);
-    }
-
-    /**
-     * @param array<string, mixed> $options
-     * @return array<string, mixed>
-     */
-    private function normalizeDirectOptions(array $options): array
-    {
-        if (!isset($options['headers']) || !is_array($options['headers'])) {
-            return $options;
-        }
-
-        // 直连 http 的实现要求 header 是 name => value 结构，这里顺手做一次归一化。
-        $headers = [];
-        foreach ($options['headers'] as $name => $value) {
-            if (is_int($name)) {
-                $line = (string) $value;
-                if (!str_contains($line, ':')) {
-                    continue;
-                }
-
-                [$parsedName, $parsedValue] = explode(':', $line, 2);
-                $headers[trim($parsedName)] = ltrim($parsedValue);
-                continue;
-            }
-
-            $headers[(string) $name] = (string) $value;
-        }
-
-        $options['headers'] = $headers;
-
-        return $options;
     }
 }

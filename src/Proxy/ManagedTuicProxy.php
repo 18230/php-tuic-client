@@ -15,7 +15,6 @@ final class ManagedTuicProxy
     private array $pipes = [];
 
     private string $stderrBuffer = '';
-    private readonly int $httpPort;
     private readonly int $socksPort;
 
     public function __construct(
@@ -26,7 +25,6 @@ final class ManagedTuicProxy
         private readonly float $startupTimeout = 10.0,
         private readonly ?string $phpBinary = null,
     ) {
-        $this->httpPort = $httpPort ?? $this->reservePort();
         $this->socksPort = $socksPort ?? $this->reservePort();
     }
 
@@ -36,13 +34,17 @@ final class ManagedTuicProxy
             return;
         }
 
-        // 这里拉起的是项目自带的 tuic-proxy-server.php。
         $command = [
             $this->phpBinary ?? PHP_BINARY,
-            $this->projectRoot() . '/bin/tuic-proxy-server.php',
+            $this->projectRoot() . '/bin/tuic-client',
+            'run',
             '--config=' . $this->configPath,
-            '--http-listen=127.0.0.1:' . $this->httpPort,
-            '--socks-listen=127.0.0.1:' . $this->socksPort,
+            '--listen=127.0.0.1:' . $this->socksPort,
+            '--allow-ip=127.0.0.1',
+            '--max-connections=256',
+            '--connect-timeout=10',
+            '--idle-timeout=300',
+            '--handshake-timeout=15',
         ];
 
         if ($this->nodeName !== null && $this->nodeName !== '') {
@@ -65,7 +67,6 @@ final class ManagedTuicProxy
         fclose($this->pipes[0]);
         stream_set_blocking($this->pipes[2], false);
 
-        // 通过读取子进程 stderr，等待两个监听端口真正起来。
         $deadline = microtime(true) + $this->startupTimeout;
         while (microtime(true) < $deadline) {
             $this->drainStderr();
@@ -79,10 +80,7 @@ final class ManagedTuicProxy
                 );
             }
 
-            if (
-                str_contains($this->stderrBuffer, 'HTTP proxy listening on')
-                && str_contains($this->stderrBuffer, 'SOCKS5 proxy listening on')
-            ) {
+            if (str_contains($this->stderrBuffer, 'SOCKS5 proxy listening.')) {
                 return;
             }
 
@@ -128,12 +126,12 @@ final class ManagedTuicProxy
 
     public function getHttpProxyAddress(): string
     {
-        return '127.0.0.1:' . $this->httpPort;
+        throw new \RuntimeException('HTTP proxy mode is not available in the current quiche runtime. Use SOCKS5 instead.');
     }
 
     public function getHttpProxyUrl(): string
     {
-        return 'http://' . $this->getHttpProxyAddress();
+        throw new \RuntimeException('HTTP proxy mode is not available in the current quiche runtime. Use SOCKS5 instead.');
     }
 
     public function getSocksProxyAddress(): string

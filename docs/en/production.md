@@ -39,6 +39,14 @@ Shell:
 export PHP_BIN=/usr/bin/php
 export TUIC_CONFIG=/opt/php-tuic-client/config/tuic.yaml
 export TUIC_SOCKS_LISTEN=127.0.0.1:1080
+export TUIC_ALLOW_IP=127.0.0.1
+export TUIC_MAX_CONNECTIONS=2048
+export TUIC_CONNECT_TIMEOUT=12
+export TUIC_IDLE_TIMEOUT=600
+export TUIC_HANDSHAKE_TIMEOUT=20
+export TUIC_STATUS_FILE=/opt/php-tuic-client/runtime/status.json
+export TUIC_LOG_FILE=/opt/php-tuic-client/runtime/proxy.log
+export TUIC_PID_FILE=/opt/php-tuic-client/runtime/proxy.pid
 export QUICHE_LIB=/opt/php-tuic-client/resources/native/linux-x64/libquiche.so
 
 ./scripts/start-tuic-client.sh
@@ -74,6 +82,9 @@ Linux / macOS:
 ## Operational Guidance
 
 - Keep the SOCKS5 listener on loopback unless you explicitly need broader access.
+- Prefer an explicit `allow-ip` list instead of trusting the bind address alone.
+- Keep `log-file` and `status-file` enabled in production so you can inspect failures without attaching to the process.
+- The default `idle-timeout` is now 300 seconds. Raise it if your workload keeps long-lived but mostly idle TCP sessions.
 - Run `php bin/tuic-client doctor ...` during deployment validation.
 - Treat `skip-cert-verify: true` as a deliberate trust tradeoff.
 - Use a supervisor such as `systemd`, `supervisord`, or `launchd`.

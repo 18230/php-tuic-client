@@ -8,6 +8,9 @@ use PhpTuic\Crypto\TlsKeylogReader;
 use PhpTuic\Native\Quiche\QuicheBindings;
 use PhpTuic\Native\Quiche\SocketAddress;
 use PhpTuic\Protocol\CommandEncoder;
+use PhpTuic\Runtime\RunOptions;
+use PhpTuic\Runtime\RuntimeLogger;
+use PhpTuic\Runtime\ServerStats;
 use React\EventLoop\Loop;
 use React\EventLoop\LoopInterface;
 use React\EventLoop\TimerInterface;
@@ -28,9 +31,11 @@ final class TuicClient
     private ?SocketAddress $peerAddress = null;
     private ?TimerInterface $timeoutTimer = null;
     private ?TimerInterface $authTimer = null;
+    private ?TimerInterface $handshakeTimer = null;
     private ?string $keylogPath = null;
     private bool $authenticated = false;
     private bool $authCommandSent = false;
+    private bool $authResultRecorded = false;
     private int $nextBidiStreamId = 0;
     private int $nextUniStreamId = 2;
     private string $resolvedPeerIp = '';
@@ -66,6 +71,21 @@ final class TuicClient
     public function __construct(
         private readonly NodeConfig $node,
         ?LoopInterface $loop = null,
+        private readonly RunOptions $options = new RunOptions(
+            listenAddress: '127.0.0.1:1080',
+            maxConnections: 1024,
+            allowIps: [],
+            connectTimeout: 10.0,
+            idleTimeoutSeconds: 300,
+            handshakeTimeout: 15.0,
+            statusFile: null,
+            statusInterval: 10,
+            logFile: null,
+            pidFile: null,
+            verbose: false,
+        ),
+        private readonly ?ServerStats $stats = null,
+        private readonly ?RuntimeLogger $logger = null,
         private readonly ?string $quicheLibrary = null,
     ) {
         $this->loop = $loop ?? Loop::get();
@@ -103,6 +123,7 @@ final class TuicClient
         });
         $this->flushEgress();
         $this->armTimeout();
+        $this->armHandshakeTimeout();
         $this->startAuthenticationPolling();
     }
 
@@ -143,9 +164,17 @@ final class TuicClient
             $this->closeRelay($streamId, 'TUIC client stopping.');
         }
 
+        foreach ($this->pendingRelays as $relay) {
+            if (is_resource($relay['local'])) {
+                fclose($relay['local']);
+            }
+            $this->stats?->recordConnectionClosed();
+        }
+
         $this->pendingRelays = [];
         $this->authenticated = false;
         $this->authCommandSent = false;
+        $this->authResultRecorded = false;
 
         if ($this->timeoutTimer !== null) {
             $this->loop->cancelTimer($this->timeoutTimer);
@@ -155,6 +184,11 @@ final class TuicClient
         if ($this->authTimer !== null) {
             $this->loop->cancelTimer($this->authTimer);
             $this->authTimer = null;
+        }
+
+        if ($this->handshakeTimer !== null) {
+            $this->loop->cancelTimer($this->handshakeTimer);
+            $this->handshakeTimer = null;
         }
 
         if (is_resource($this->udpSocket)) {
@@ -218,7 +252,7 @@ final class TuicClient
 
         $this->ffi->quiche_config_verify_peer($config, !$this->node->skipCertVerify);
         $this->ffi->quiche_config_log_keys($config);
-        $this->ffi->quiche_config_set_max_idle_timeout($config, 30_000);
+        $this->ffi->quiche_config_set_max_idle_timeout($config, $this->options->idleTimeoutSeconds * 1000);
         $this->ffi->quiche_config_set_max_recv_udp_payload_size($config, 1_350);
         $this->ffi->quiche_config_set_max_send_udp_payload_size($config, 1_350);
         $this->ffi->quiche_config_set_initial_max_data($config, 10_000_000);
@@ -474,7 +508,7 @@ final class TuicClient
 
         if ($this->streams[$streamId]['remote_fin']) {
             @stream_socket_shutdown($local, STREAM_SHUT_WR);
-            $this->closeRelay($streamId, null, closeLocal: false);
+            $this->closeRelay($streamId);
         }
     }
 
@@ -650,6 +684,7 @@ final class TuicClient
             );
 
             if ($written < 0) {
+                $this->recordAuthFailure();
                 $this->shutdownAllStreams("Failed to send the TUIC authenticate command: {$written}");
 
                 return;
@@ -657,6 +692,11 @@ final class TuicClient
 
             $this->authCommandSent = true;
             $this->authenticated = true;
+            $this->recordAuthSuccess();
+            if ($this->handshakeTimer !== null) {
+                $this->loop->cancelTimer($this->handshakeTimer);
+                $this->handshakeTimer = null;
+            }
             $this->flushEgress();
             $pending = $this->pendingRelays;
             $this->pendingRelays = [];
@@ -683,6 +723,9 @@ final class TuicClient
     private function shutdownAllStreams(string $reason): void
     {
         $this->log($reason);
+        if (!$this->authenticated) {
+            $this->recordAuthFailure();
+        }
         foreach (array_keys($this->streams) as $streamId) {
             $this->closeRelay($streamId, $reason);
         }
@@ -692,6 +735,7 @@ final class TuicClient
             if (is_resource($relay['local'])) {
                 fclose($relay['local']);
             }
+            $this->stats?->recordConnectionClosed();
         }
 
         $this->pendingRelays = [];
@@ -714,6 +758,7 @@ final class TuicClient
         }
 
         unset($this->streams[$streamId]);
+        $this->stats?->recordConnectionClosed();
 
         if ($reason !== null) {
             ($state['onError'])(new \RuntimeException($reason));
@@ -726,7 +771,13 @@ final class TuicClient
     private function openUdpSocket(string $ip, int $port)
     {
         $endpoint = str_contains($ip, ':') ? "udp://[{$ip}]:{$port}" : "udp://{$ip}:{$port}";
-        $socket = @stream_socket_client($endpoint, $errno, $error, 10, STREAM_CLIENT_CONNECT);
+        $socket = @stream_socket_client(
+            $endpoint,
+            $errno,
+            $error,
+            $this->options->connectTimeout,
+            STREAM_CLIENT_CONNECT,
+        );
         if (!is_resource($socket)) {
             throw new \RuntimeException("Failed to open UDP socket to {$endpoint}: {$error} ({$errno})");
         }
@@ -786,6 +837,26 @@ final class TuicClient
         @unlink($path);
 
         return $path;
+    }
+
+    private function armHandshakeTimeout(): void
+    {
+        if ($this->handshakeTimer !== null) {
+            $this->loop->cancelTimer($this->handshakeTimer);
+        }
+
+        $this->handshakeTimer = $this->loop->addTimer($this->options->handshakeTimeout, function (): void {
+            if ($this->connection === null || $this->authenticated) {
+                return;
+            }
+
+            $this->stats?->recordHandshakeTimeout();
+            $this->recordAuthFailure();
+            $this->shutdownAllStreams(sprintf(
+                'Timed out after %.1f seconds waiting for QUIC/TUIC authentication.',
+                $this->options->handshakeTimeout,
+            ));
+        });
     }
 
     private function logEstablishedProtocol(): void
@@ -864,6 +935,32 @@ final class TuicClient
 
     private function log(string $message): void
     {
+        if ($this->logger !== null) {
+            $this->logger->info($message, ['component' => 'tuic']);
+
+            return;
+        }
+
         fwrite(STDERR, "[tuic] {$message}\n");
+    }
+
+    private function recordAuthSuccess(): void
+    {
+        if ($this->authResultRecorded) {
+            return;
+        }
+
+        $this->authResultRecorded = true;
+        $this->stats?->recordTuicAuthSuccess();
+    }
+
+    private function recordAuthFailure(): void
+    {
+        if ($this->authResultRecorded) {
+            return;
+        }
+
+        $this->authResultRecorded = true;
+        $this->stats?->recordTuicAuthFailure();
     }
 }

@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [v0.2.1] - 2026-03-30
+
+### Added
+
+- Production-oriented runtime options for local SOCKS5 startup, including `allow-ip`, `max-connections`, `connect-timeout`, `idle-timeout`, `handshake-timeout`, `status-file`, `log-file`, and `pid-file`
+- Runtime ACL matching, status snapshot writing, and lightweight file/stderr logging
+- Unit coverage for runtime option parsing and IP allow-list evaluation
+- Automatic real-node TUIC E2E verification on `main` pushes and version tags
+
+### Changed
+
+- Raised the default QUIC idle timeout from 30 seconds to 300 seconds
+- Fixed the local SOCKS5 runtime to enforce connection limits and close stalled handshakes
+- Reworked the managed request client to rely on the local SOCKS5 proxy path instead of unfinished direct HTTP/TCP helper methods
+- Aligned `bin/tuic-proxy-server.php` and the startup scripts with the current SOCKS5-only runtime model
+
 ## [v0.2.0] - 2026-03-30
 
 ### Changed

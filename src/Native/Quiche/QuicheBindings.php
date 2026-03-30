@@ -31,6 +31,16 @@ final class QuicheBindings
         return is_string($version) ? $version : \FFI::string($version);
     }
 
+    public function assertConfigCreation(): void
+    {
+        $config = $this->ffi->quiche_config_new(self::PROTOCOL_VERSION);
+        if ($config === null) {
+            throw new \RuntimeException('libquiche loaded, but quiche_config_new() returned NULL.');
+        }
+
+        $this->ffi->quiche_config_free($config);
+    }
+
     public static function afInet(): int
     {
         return \defined('AF_INET') ? AF_INET : 2;
