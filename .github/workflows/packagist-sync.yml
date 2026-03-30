@@ -1,0 +1,61 @@
+name: Packagist Sync
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PACKAGIST_USERNAME: ${{ vars.PACKAGIST_USERNAME || github.repository_owner }}
+
+jobs:
+  update-packagist:
+    name: Notify Packagist
+    runs-on: ubuntu-latest
+    env:
+      PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
+
+    steps:
+      - name: Skip when Packagist token is not configured
+        if: ${{ env.PACKAGIST_API_TOKEN == '' }}
+        shell: bash
+        run: |
+          {
+            echo "## Packagist sync"
+            echo
+            echo "Skipping notification because \`PACKAGIST_API_TOKEN\` is not configured."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Notify Packagist update endpoint
+        if: ${{ env.PACKAGIST_API_TOKEN != '' }}
+        env:
+          PACKAGIST_API_TOKEN: ${{ env.PACKAGIST_API_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          payload="$(printf '{"repository":{"url":"%s/%s"}}' "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY")"
+
+          curl --fail-with-body \
+            --request POST \
+            --header 'content-type: application/json' \
+            --data "$payload" \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USERNAME}&apiToken=${PACKAGIST_API_TOKEN}"
+
+      - name: Write summary
+        if: ${{ env.PACKAGIST_API_TOKEN != '' }}
+        shell: bash
+        run: |
+          {
+            echo "## Packagist sync"
+            echo
+            echo "- Username: \`${PACKAGIST_USERNAME}\`"
+            echo "- Repository: \`${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}\`"
+            echo "- Trigger: \`${GITHUB_REF}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

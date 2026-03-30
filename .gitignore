@@ -1,0 +1,8 @@
+/vendor/
+/.phpunit.cache/
+/bin/workerman.log
+/.github/.tmp/
+/.runtime/
+/runtime/
+/runtime-test/
+/*.log
