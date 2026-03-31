@@ -229,20 +229,6 @@ final class TuicClient
         // Heartbeat over QUIC DATAGRAM is not wired yet in this FFI runtime.
     }
 
-    public function tcpRequest(string $targetHost, int $targetPort, string $payload): string
-    {
-        throw new \RuntimeException(
-            'Direct TUIC request helpers are not available in the quiche FFI runtime yet. Use the local SOCKS5 proxy.',
-        );
-    }
-
-    public function openTcpStream(string $targetHost, int $targetPort, string $initialData = ''): mixed
-    {
-        throw new \RuntimeException(
-            'openTcpStream() is not available in the quiche FFI runtime yet. Use queueTcpRelay() via the local SOCKS5 proxy.',
-        );
-    }
-
     private function createConfig(): \FFI\CData
     {
         $config = $this->ffi?->quiche_config_new(QuicheBindings::PROTOCOL_VERSION);

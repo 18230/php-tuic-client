@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.2.4] - 2026-03-31
+
+### Changed
+
+- Removed the obsolete direct-request CLI scripts that no longer matched the supported SOCKS5 runtime
+- Deleted the unused `TuicHttpClient` helper and the no-op direct TCP helper methods on `TuicClient`
+- Kept `tuic-request` as the compatibility CLI for cURL-over-SOCKS request helpers
+
 ## [v0.2.3] - 2026-03-31
 
 ### Changed

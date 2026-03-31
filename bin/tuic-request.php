@@ -28,7 +28,7 @@ Options:
   --node=YAML_OR_JSON        Inline TUIC node config in YAML or JSON.
   --node-name=NAME           Optional node name when config contains multiple proxies.
   --method=METHOD            HTTP method, default GET.
-  --proxy-mode=MODE          http or socks5, default http.
+  --proxy-mode=MODE          socks5 or socks5h, default socks5h. "http" is accepted only for backward compatibility.
   --data=STRING              Request body for POST/PUT/PATCH style requests.
   --header='Name: value'     Repeatable custom header.
   --follow-redirects         Enable redirect following.
@@ -81,7 +81,7 @@ try {
     $client = new TuicRequestClient(
         configPath: (string) $configPath,
         nodeName: isset($options['node-name']) ? (string) $options['node-name'] : null,
-        proxyMode: (string) ($options['proxy-mode'] ?? 'http'),
+        proxyMode: (string) ($options['proxy-mode'] ?? 'socks5h'),
     );
 
     $response = $client->request(
