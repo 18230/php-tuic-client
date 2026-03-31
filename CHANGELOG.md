@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [v0.2.3] - 2026-03-31
+
+### Changed
+
+- Removed unused `amphp/amp`, `amphp/byte-stream`, and `amphp/socket` dependencies from the packaged runtime
+- Deleted the old Amp-based HTTP proxy bridge files that were no longer part of the supported SOCKS5 production path
+- Aligned the CLI application version with the published package tags
+
 ## [v0.2.2] - 2026-03-30
 
 ### Changed

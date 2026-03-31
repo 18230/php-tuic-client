@@ -10,7 +10,7 @@ final class Application extends BaseApplication
 {
     public function __construct()
     {
-        parent::__construct('tuic-client', '0.3.0');
+        parent::__construct('tuic-client', '0.2.3');
 
         $this->add(new RunCommand());
         $this->add(new DoctorCommand());
